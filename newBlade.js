@@ -47,9 +47,9 @@ export async function main(ns) {
             do {
                 for (const con of contracts) {
                     await checkCity();
-                    await checkAccuracy();
                     do {
                         await performAction('contract', con);
+                        await checkAccuracy();
                         await upgradeSkills();
                         await ns.sleep(10);
                     } while (actionCount('contract', con) > 0);
@@ -66,6 +66,10 @@ export async function main(ns) {
             // increase stats if chose skip
             await checkAccuracy();
             while (successChance('operation', operations[0])[0] < 0.6) {
+                if (ns.singularity.getCurrentWork().type === "GRAFTING") {
+                    isSkipping = false;
+                    break;
+                }
                 blade.stopBladeburnerAction();
                 ns.clearLog();
                 ns.print(`Operations success chance: ${ns.formatPercent(successChance('operation', operations[0])[0], 1)}\n -> Insufficient.\n > Committing Crime...`);
@@ -76,32 +80,34 @@ export async function main(ns) {
                 await checkAccuracy();
             }
 
-            // operations
-            while (blade.getRank() < 4e5 || successChance('black op', blackOps[blackOps.length - 1])[0] < 1) {
-                for (const op of operations) {
-                    await checkCity();
-                    await checkAccuracy();
-                    do {
-                        if (op === 'Raid') return;
-                        await performAction('operation', op);
-                        await upgradeSkills();
-                        await ns.sleep(10);
-                    } while (actionCount('operation', op) > 0);
+            if (isSkipping) {
+                // operations
+                while (blade.getRank() < 4e5 || successChance('black op', blackOps[blackOps.length - 1])[0] < 1) {
+                    for (const op of operations) {
+                        await checkCity();
+                        do {
+                            if (op === 'Raid') return;
+                            await performAction('operation', op);
+                            await checkAccuracy();
+                            await upgradeSkills();
+                            await ns.sleep(10);
+                        } while (actionCount('operation', op) > 0);
+                    }
+                    await regulateChaos();
+                    await increaseWorkCount();
+                    await ns.sleep(10);
                 }
-                await regulateChaos();
-                await increaseWorkCount();
-                await ns.sleep(10);
-            }
 
-            // black ops
-            if (blade.getRank() >= 4e5 && successChance('black op', blackOps[blackOps.length - 1])[0] >= 1) {
-                for (const bo of blackOps) {
-                    await performAction('black op', bo);
-                    await upgradeSkills();
-                }
-                if (actionCount(blackOps[blackOps.length - 1]) < 1) {
-                    ns.alert(`(!) Operation Daedalus is accomplished (!)\n(!) Destroy this BitNode when you're ready (!)`);
-                    ns.exit();
+                // black ops
+                if (blade.getRank() >= 4e5 && successChance('black op', blackOps[blackOps.length - 1])[0] >= 1) {
+                    for (const bo of blackOps) {
+                        await performAction('black op', bo);
+                        await upgradeSkills();
+                    }
+                    if (actionCount(blackOps[blackOps.length - 1]) < 1) {
+                        ns.alert(`(!) Operation Daedalus is accomplished (!)\n(!) Destroy this BitNode when you're ready (!)`);
+                        ns.exit();
+                    }
                 }
             }
         }
@@ -113,7 +119,7 @@ export async function main(ns) {
         const city = blade.getCity();
         ns.clearLog();
         ns.printf(` skip=${isSkipping}`);
-        ns.print(` t1=${ns.formatPercent(successChance('contract', contracts[0])[0], 1)}, op1=${ns.formatPercent(successChance('operation', operations[0])[0], 1)}, bo1=${ns.formatPercent(successChance('black op', blackOps[0])[0], 1)}`);
+        ns.print(` c1=${ns.formatPercent(successChance('contract', contracts[0])[0], 1)}, op1=${ns.formatPercent(successChance('operation', operations[0])[0], 1)}, bo1=${ns.formatPercent(successChance('black op', blackOps[0])[0], 1)}`);
         ns.printf(` action=${type}\n > ${name}`);
         ns.printf(' ----------------------------------');
         ns.printf(` rank=${ns.formatNumber(blade.getRank(), 1)}, SP=${ns.formatNumber(blade.getSkillPoints(), 1)}`);
