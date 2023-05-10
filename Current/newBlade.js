@@ -18,7 +18,6 @@ export async function main(ns) {
     const actionTime = (type = '', name = '') => blade.getActionTime(type, name);
     const actionCount = (type = '', name = '') => blade.getActionCountRemaining(type, name);
     const requiredSP = skill => blade.getSkillUpgradeCost(skill);
-    const currentSP = () => blade.getSkillPoints();
     const cityChaos = (city = '') => blade.getCityChaos(city);
 
     // const
@@ -38,7 +37,7 @@ export async function main(ns) {
             // general
             while (successChance('contract', contracts[0])[0] < 0.5) {
                 await performAction('general', generalActions[0]);
-                await checkAccuracy();
+                await checkAccuracy('contract', contracts[0]);
                 await regulateChaos();
                 await upgradeSkills();
                 await checkBlackOps();
@@ -50,8 +49,8 @@ export async function main(ns) {
                 for (const con of contracts) {
                     await checkCity();
                     do {
+                        await checkAccuracy('contract', con);
                         await performAction('contract', con);
-                        await checkAccuracy();
                         await upgradeSkills();
                         await checkBlackOps();
                         await ns.sleep(10);
@@ -67,7 +66,7 @@ export async function main(ns) {
         // skip mode
         if (isSkipping) {
             // increase stats if chose skip
-            await checkAccuracy();
+            await checkAccuracy('operation', operations[0]);
             while (successChance('operation', operations[0])[0] < 0.6) {
                 if (ns.singularity.getCurrentWork().type === "GRAFTING") {
                     isSkipping = false;
@@ -80,7 +79,7 @@ export async function main(ns) {
                 await ns.sleep(1e3 * 60 * 30);
                 ns.kill('autoCrime.js', 'home');
                 await ns.sleep(3e3);
-                await checkAccuracy();
+                await checkAccuracy('operation', operations[0]);
             }
 
             // operations
@@ -89,8 +88,8 @@ export async function main(ns) {
                     await checkCity();
                     do {
                         if (op === 'Raid') return;
+                        await checkAccuracy('operation', op);
                         await performAction('operation', op);
-                        await checkAccuracy();
                         await upgradeSkills();
                         await ns.sleep(10);
                     } while (actionCount('operation', op) > 0);
@@ -117,7 +116,7 @@ export async function main(ns) {
         ns.printf(` action=${type}\n > ${name}`);
         ns.printf(' ----------------------------------');
         ns.printf(` rank=${ns.formatNumber(blade.getRank(), 1)}, SP=${ns.formatNumber(blade.getSkillPoints(), 1)}`);
-        ns.printf(` city=${city}, chaos=${ns.formatNumber(blade.getCityChaos(city), 1)}, pop=${ns.formatNumber(populationOf(city), 2)}`);
+        ns.printf(` city=${city}, chaos=${ns.formatNumber(blade.getCityChaos(city))}, pop=${ns.formatNumber(populationOf(city), 2)}`);
     }
 
     /** ```switchCity``` if current population is the lowest. Moves to highest. */
@@ -138,8 +137,8 @@ export async function main(ns) {
     }
 
     /** If accuracy is insufficient (```[0] != [1]```) start ```Field Analysis``` */
-    async function checkAccuracy() {
-        while (successChance('operation', operations[0])[0] !== successChance('operation', operations[0])[1])
+    async function checkAccuracy(type, name) {
+        while (successChance(type, name)[0] !== successChance(type, name)[1])
             await performAction('general', 'Field Analysis');
         await ns.sleep(10);
     }
@@ -186,7 +185,7 @@ export async function main(ns) {
 
         chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
 
-        while (currentSP() >= requiredSP(chosenSkills[0])) {
+        while (blade.getSkillPoints() >= requiredSP(chosenSkills[0])) {
             logAction('Upgrade Skill', chosenSkills[0]);
             blade.upgradeSkill(chosenSkills[0]);
             chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
@@ -216,6 +215,7 @@ export async function main(ns) {
 
     /** Perform the current black op if chance is 100% */
     async function checkBlackOps() {
+        await checkAccuracy('black op', currentBlackOp);
         if (blade.getRank() >= blade.getBlackOpRank(currentBlackOp) && successChance('black op', currentBlackOp)[0] >= 1) {
             await performAction('black op', currentBlackOp);
             await upgradeSkills();

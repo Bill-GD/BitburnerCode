@@ -58,7 +58,6 @@ export async function main(ns) {
                 `  > Start: ${timeStart.getDate()}/${timeStart.getMonth() + 1} ${timeStart.getHours() < 10 ? '0' : ''}${timeStart.getHours()}:${timeStart.getMinutes() < 10 ? '0' : ''}${timeStart.getMinutes()}\n` +
                 `  > End: ${timeEnd.getDate()}/${timeEnd.getMonth() + 1} ${timeEnd.getHours() < 10 ? '0' : ''}${timeEnd.getHours()}:${timeEnd.getMinutes() < 10 ? '0' : ''}${timeEnd.getMinutes()}`;
 
-            menuText += '\n' + timeNotification + '\n';
             lineCount += 4;
 
             ns.resizeTail(600, 25 * (lineCount + 3) + 25);
@@ -70,7 +69,9 @@ export async function main(ns) {
                 ns.run('newGraft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
                 ns.clearLog();
                 let timeToGraft = graftTime(aug);
-                ns.printf(`${menuText}\n Grafting: ${aug} - ${ns.tFormat(timeToGraft)}`);
+                ns.printf(`${menuText}`);
+                ns.printf(`\n Grafting: ${aug} - ${ns.tFormat(timeToGraft)}`);
+                ns.printf(`\n${timeNotification}`);
                 await ns.sleep(timeToGraft + 100);
             }
 
