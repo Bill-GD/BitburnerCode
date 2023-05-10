@@ -3,7 +3,7 @@ export async function main(ns) {
     ns.disableLog('ALL');
     ns.clearLog();
     ns.tail();
-    ns.moveTail(1700, 800);
+    ns.moveTail(1650, 800);
     ns.resizeTail(425, 200);
 
     const blade = ns.bladeburner;

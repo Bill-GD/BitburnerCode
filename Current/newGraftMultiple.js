@@ -37,20 +37,18 @@ export async function main(ns) {
             let lineCount = 1;
             let totalCost = 0;
             let totalTime = 0;
+            let menuText = '';
 
-            ns.printf(` Augs to graft (total=${chosenAugNames.length}):`);
+            chosenAugNames.forEach(aug => totalCost += augGraftCost(aug));
+            menuText += ` Augs to graft (total=${chosenAugNames.length}, cost=$${ns.formatNumber(totalCost, 1)}):\n`;
 
             Object.entries(chosenAugNames).forEach(([i, aug]) => {
                 const cost = augGraftCost(aug);
                 totalCost += cost;
                 totalTime += graftTime(aug);
-                ns.printf(`  > ${chosenAugIDs[i]}. ${aug} - $${ns.formatNumber(cost, 1)}`);
+                menuText += `  > ${chosenAugIDs[i]}. ${aug} - $${ns.formatNumber(cost, 1)}\n`;
                 lineCount++;
             });
-
-            ns.printf(`\n Total cost: $${ns.formatNumber(totalCost, 1)}`);
-            ns.printf('\n');
-            lineCount += 3;
 
             const timeStart = new Date();
             const timeEnd = new Date(timeStart.getTime() + totalTime);
@@ -60,14 +58,17 @@ export async function main(ns) {
                 `  > Start: ${timeStart.getDate()}/${timeStart.getMonth() + 1} ${timeStart.getHours() < 10 ? '0' : ''}${timeStart.getHours()}:${timeStart.getMinutes() < 10 ? '0' : ''}${timeStart.getMinutes()}\n` +
                 `  > End: ${timeEnd.getDate()}/${timeEnd.getMonth() + 1} ${timeEnd.getHours() < 10 ? '0' : ''}${timeEnd.getHours()}:${timeEnd.getMinutes() < 10 ? '0' : ''}${timeEnd.getMinutes()}`;
 
-            ns.printf(timeNotification);
+            menuText += '\n' + timeNotification + '\n';
             lineCount += 4;
-            ns.resizeTail(600, 25 * lineCount + 25);
+
+            ns.resizeTail(600, 25 * (lineCount + 3) + 25);
+            ns.printf(menuText);
 
             if (!await ns.prompt('Start Grafting?\n' + timeNotification)) break;
 
             for (const aug of chosenAugNames) {
                 ns.run('newGraft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
+                ns.printf(`${menuText}\n Grafting: ${aug}`);
                 await ns.sleep(graftTime(aug) + 100);
             }
 
