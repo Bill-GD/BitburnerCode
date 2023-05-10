@@ -2,7 +2,12 @@
 export async function main(ns) {
     ns.disableLog("ALL");
     ns.clearLog();
-    ns.tail();
+
+    const flagOptions = ns.flags([
+        ['script', false],
+        ['chosenAugName', ''],
+        ['multiple', false]
+    ]);
 
     const graft = ns.grafting;
 
@@ -14,10 +19,16 @@ export async function main(ns) {
     const graftableAugs = graft.getGraftableAugmentations();
     graftableAugs.sort((a, b) => augGraftCost(a) - augGraftCost(b));
 
-    const option = await ns.prompt(
-        'Choose option:\nlist: list augmentations\ninfo: get info of augmentation\ngraft: start grafting',
-        { 'type': 'select', 'choices': ['list', 'info', 'graft'] }
-    );
+    let option = '';
+    if (flagOptions.script)
+        option = 'graft';
+    else {
+        ns.tail();
+        option = await ns.prompt(
+            'Choose option:\nlist: list augmentations\ninfo: get info of augmentation\ngraft: start grafting',
+            { 'type': 'select', 'choices': ['list', 'info', 'graft'] }
+        );
+    }
 
     switch (option) {
         case 'list': {
@@ -115,10 +126,13 @@ export async function main(ns) {
             ns.exit();
         }
         case 'graft': {
-            let chosenAug = await ns.prompt(
-                'Select an augmentation to view graft:',
-                { 'type': 'select', 'choices': graftableAugs }
-            );
+            let chosenAug = !flagOptions.script
+                ? await ns.prompt(
+                    'Select an augmentation to view graft:',
+                    { 'type': 'select', 'choices': graftableAugs }
+                )
+                : flagOptions.chosenAugName;
+
             let id = graftableAugs.findIndex((g) => g === chosenAug);
             if (id === -1) ns.exit();
 
@@ -136,15 +150,20 @@ export async function main(ns) {
                 ns.printf(`ERROR: You don't have enough money to travel to New Tokyo`);
                 ns.exit();
             }
-            if (graft.graftAugmentation(chosenAug, focus) == true) {
-                if (await ns.prompt('Show time?')) {
-                    ns.printf(` Time to graft\n ${chosenAug} (ID: ${id}):`);
-                    ns.printf(`  > ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`,);
-                    ns.printf(` Cost: $${ns.formatNumber(augGraftCost(chosenAug), 1)}`);
+            if (graft.graftAugmentation(chosenAug, focus) === true) {
+                if (!flagOptions.multiple) {
+                    ns.resizeTail(600, 125);
+                    if (await ns.prompt('Show time?')) {
+                        ns.printf(` Time to graft\n ${chosenAug} (ID=${id}, cost=$${ns.formatNumber(augGraftCost(chosenAug), 1)}):`);
+                        ns.printf(`  > ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`);
+                    }
+                    else
+                        ns.printf(` Currently grafting: ${chosenAug}`);
                 }
             }
             else
                 ns.printf(`ERROR: Hasn't grafted prerequisites of ${chosenAug}`);
+            ns.closeTail();
             ns.exit();
         }
     }
