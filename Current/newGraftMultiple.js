@@ -68,8 +68,10 @@ export async function main(ns) {
 
             for (const aug of chosenAugNames) {
                 ns.run('newGraft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
-                ns.printf(`${menuText}\n Grafting: ${aug}`);
-                await ns.sleep(graftTime(aug) + 100);
+                ns.clearLog();
+                let timeToGraft = graftTime(aug);
+                ns.printf(`${menuText}\n Grafting: ${aug} - ${ns.tFormat(timeToGraft)}`);
+                await ns.sleep(timeToGraft + 100);
             }
 
             ns.printf('INFO: FINISHED GRAFTING');
