@@ -30,6 +30,7 @@ export async function main(ns) {
 
     let isSkipping = false;
     isSkipping = await ns.prompt(`(!) Skip Mode: quickly finish Black Ops (!)\n\t     (Skip to Daedalus)\n\t  (?) ENABLE Skip Mode (?)`);
+    let currentBlackOp = getCurrentBlackOp();
 
     while (true) {
         // normal
@@ -40,6 +41,7 @@ export async function main(ns) {
                 await checkAccuracy();
                 await regulateChaos();
                 await upgradeSkills();
+                await checkBlackOps();
                 await ns.sleep(10);
             }
 
@@ -51,13 +53,14 @@ export async function main(ns) {
                         await performAction('contract', con);
                         await checkAccuracy();
                         await upgradeSkills();
+                        await checkBlackOps();
                         await ns.sleep(10);
                     } while (actionCount('contract', con) > 0);
                 }
                 await regulateChaos();
                 await increaseWorkCount();
                 await ns.sleep(10);
-            } while (blade.getRank() < 4e5 || successChance('operation', operations[0])[0] < 0.6);
+            } while (successChance('operation', operations[0])[0] < 0.6);
 
             isSkipping = true;
         }
@@ -80,36 +83,23 @@ export async function main(ns) {
                 await checkAccuracy();
             }
 
-            if (isSkipping) {
-                // operations
-                while (blade.getRank() < 4e5 || successChance('black op', blackOps[blackOps.length - 1])[0] < 1) {
-                    for (const op of operations) {
-                        await checkCity();
-                        do {
-                            if (op === 'Raid') return;
-                            await performAction('operation', op);
-                            await checkAccuracy();
-                            await upgradeSkills();
-                            await ns.sleep(10);
-                        } while (actionCount('operation', op) > 0);
-                    }
-                    await regulateChaos();
-                    await increaseWorkCount();
-                    await ns.sleep(10);
-                }
-
-                // black ops
-                if (blade.getRank() >= 4e5 && successChance('black op', blackOps[blackOps.length - 1])[0] >= 1) {
-                    for (const bo of blackOps) {
-                        await performAction('black op', bo);
+            // operations
+            while (successChance('black op', currentBlackOp)[0] < 1) {
+                for (const op of operations) {
+                    await checkCity();
+                    do {
+                        if (op === 'Raid') return;
+                        await performAction('operation', op);
+                        await checkAccuracy();
                         await upgradeSkills();
-                    }
-                    if (actionCount(blackOps[blackOps.length - 1]) < 1) {
-                        ns.alert(`(!) Operation Daedalus is accomplished (!)\n(!) Destroy this BitNode when you're ready (!)`);
-                        ns.exit();
-                    }
+                        await ns.sleep(10);
+                    } while (actionCount('operation', op) > 0);
                 }
+                await regulateChaos();
+                await increaseWorkCount();
+                await ns.sleep(10);
             }
+            await checkBlackOps();
         }
 
         await ns.sleep(10);
@@ -119,7 +109,11 @@ export async function main(ns) {
         const city = blade.getCity();
         ns.clearLog();
         ns.printf(` skip=${isSkipping}`);
-        ns.print(` c1=${ns.formatPercent(successChance('contract', contracts[0])[0], 1)}, op1=${ns.formatPercent(successChance('operation', operations[0])[0], 1)}, bo1=${ns.formatPercent(successChance('black op', blackOps[0])[0], 1)}`);
+        ns.print(
+            ` c1=${ns.formatPercent(successChance('contract', contracts[0])[0], 1)}` +
+            `, op1=${ns.formatPercent(successChance('operation', operations[0])[0], 1)}` +
+            (currentBlackOp !== '' ? `, ${currentBlackOp.substring(10)}=${ns.formatPercent(successChance('black op', currentBlackOp)[0], 1)}` : '')
+        );
         ns.printf(` action=${type}\n > ${name}`);
         ns.printf(' ----------------------------------');
         ns.printf(` rank=${ns.formatNumber(blade.getRank(), 1)}, SP=${ns.formatNumber(blade.getSkillPoints(), 1)}`);
@@ -218,5 +212,30 @@ export async function main(ns) {
             await performAction('general', generalActions[3]);
             await ns.sleep(10);
         }
+    }
+
+    /** Perform the current black op if chance is 100% */
+    async function checkBlackOps() {
+        if (blade.getRank() >= blade.getBlackOpRank(currentBlackOp) && successChance('black op', currentBlackOp)[0] >= 1) {
+            await performAction('black op', currentBlackOp);
+            await upgradeSkills();
+            currentBlackOp = getCurrentBlackOp();
+            if (currentBlackOp === blackOps[blackOps.length - 1]) {
+                ns.alert(`(!) Operation Daedalus is accomplished (!)\n(!) Destroy this BitNode when you're ready (!)`);
+                ns.exit();
+            }
+        }
+    }
+
+    function getCurrentBlackOp() {
+        let currentBlackOp = '';
+        blackOps.forEach(bo => {
+            if (currentBlackOp !== '') return;
+            if (actionCount('black op', bo) > 0) {
+                currentBlackOp = bo;
+                return;
+            }
+        });
+        return currentBlackOp;
     }
 }
