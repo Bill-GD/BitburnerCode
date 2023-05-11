@@ -4,7 +4,6 @@ export async function main(ns) {
     ns.clearLog();
     ns.tail();
     ns.moveTail(1650, 800);
-    ns.resizeTail(425, 200);
 
     const blade = ns.bladeburner;
 
@@ -21,93 +20,73 @@ export async function main(ns) {
     const cityChaos = (city = '') => blade.getCityChaos(city);
 
     // const
+    const maxActionCount = 10; // maximum number of actions of each type
+
     const cities = ["Sector-12", "Aevum", "Volhaven", "Chongqing", "New Tokyo", "Ishima"];
     const generalActions = blade.getGeneralActionNames();
     const contracts = blade.getContractNames();
     const operations = blade.getOperationNames();
     const blackOps = blade.getBlackOpNames();
 
-    let isSkipping = false;
-    isSkipping = await ns.prompt(`(!) Skip Mode: quickly finish Black Ops (!)\n\t     (Skip to Daedalus)\n\t  (?) ENABLE Skip Mode (?)`);
     let currentBlackOp = getCurrentBlackOp();
 
     while (true) {
-        // normal
-        if (!isSkipping) {
-            // general
-            while (successChance('contract', contracts[0])[0] < 0.5) {
-                await performAction('general', generalActions[0]);
-                await checkAccuracy('contract', contracts[0]);
-                await regulateChaos();
-                await upgradeSkills();
-                await checkBlackOps();
-                await ns.sleep(10);
-            }
-
-            // contracts
-            do {
-                for (const con of contracts) {
-                    await checkCity();
-                    do {
-                        await checkAccuracy('contract', con);
-                        await performAction('contract', con);
-                        await upgradeSkills();
-                        await checkBlackOps();
-                        await ns.sleep(10);
-                    } while (actionCount('contract', con) > 0);
-                }
-                await regulateChaos();
-                await increaseWorkCount();
-                await ns.sleep(10);
-            } while (successChance('operation', operations[0])[0] < 0.6);
-
-            isSkipping = true;
-        }
-        // skip mode
-        if (isSkipping) {
-            // increase stats if chose skip
-            await checkAccuracy('operation', operations[0]);
-            while (successChance('operation', operations[0])[0] < 0.6) {
-                if (ns.singularity.getCurrentWork().type === "GRAFTING") {
-                    isSkipping = false;
-                    break;
-                }
-                blade.stopBladeburnerAction();
-                ns.clearLog();
-                ns.print(`Operations success chance: ${ns.formatPercent(successChance('operation', operations[0])[0], 1)}\n -> Insufficient.\n > Committing Crime...`);
-                ns.run('autoCrime.js', 1, 'homi');
-                await ns.sleep(1e3 * 60 * 30);
-                ns.kill('autoCrime.js', 'home');
-                await ns.sleep(3e3);
-                await checkAccuracy('operation', operations[0]);
-            }
-
-            // operations
-            while (successChance('black op', currentBlackOp)[0] < 1) {
-                for (const op of operations) {
-                    await checkCity();
-                    do {
-                        if (op === 'Raid') return;
-                        await checkAccuracy('operation', op);
-                        await performAction('operation', op);
-                        await upgradeSkills();
-                        await ns.sleep(10);
-                    } while (actionCount('operation', op) > 0);
-                }
-                await regulateChaos();
-                await increaseWorkCount();
-                await ns.sleep(10);
-            }
+        // general
+        do {
             await checkBlackOps();
-        }
+            await performAction('general', generalActions[0]);
+            await checkAccuracy('contract', contracts[0]);
+            await regulateChaos();
+            await upgradeSkills();
+            await ns.sleep(10);
+        } while (successChance('contract', contracts[0])[0] < 0.5);
+
+        // contracts
+        do {
+            for (const con of contracts) {
+                let count = 0;
+                await checkCity();
+                while (actionCount('contract', con) > 0 && count < maxActionCount) {
+                    await checkBlackOps();
+                    await checkAccuracy('contract', con);
+                    await performAction('contract', con);
+                    await upgradeSkills();
+                    count++;
+                    await ns.sleep(10);
+                }
+            }
+            await regulateChaos();
+            await increaseWorkCount();
+            await ns.sleep(10);
+        } while (successChance('operation', operations[0])[0] < 0.6);
+
+        // operations
+        do {
+            for (const op of operations) {
+                let count = 0;
+                await checkCity();
+                while (actionCount('operation', op) > 0 && count < maxActionCount) {
+                    await checkBlackOps();
+                    if (op === 'Raid') return;
+                    await checkAccuracy('operation', op);
+                    await performAction('operation', op);
+                    await upgradeSkills();
+                    count++;
+                    await ns.sleep(10);
+                }
+            }
+            await regulateChaos();
+            await increaseWorkCount();
+            await ns.sleep(10);
+        } while (successChance('black op', currentBlackOp)[0] < 1);
 
         await ns.sleep(10);
     }
 
     function logAction(type = '', name = '') {
+        ns.resizeTail(425, 180);
         const city = blade.getCity();
         ns.clearLog();
-        ns.printf(` skip=${isSkipping}`);
         ns.print(
             ` c1=${ns.formatPercent(successChance('contract', contracts[0])[0], 1)}` +
             `, op1=${ns.formatPercent(successChance('operation', operations[0])[0], 1)}` +
@@ -140,7 +119,6 @@ export async function main(ns) {
     async function checkAccuracy(type, name) {
         while (successChance(type, name)[0] !== successChance(type, name)[1])
             await performAction('general', 'Field Analysis');
-        await ns.sleep(10);
     }
 
     /** Starts the specified action a certain amount of time (```default=1```) and write to log.
@@ -159,7 +137,6 @@ export async function main(ns) {
             ns.alert('(!) Action type is Invalid (!)');
             ns.exit();
         }
-        await ns.sleep(50);
     }
 
     /** Rest (loop) if stamina is less than half. Rest until full. */

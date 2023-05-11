@@ -49,6 +49,7 @@ export async function main(ns) {
                 menuText += `  > ${chosenAugIDs[i]}. ${aug} - $${ns.formatNumber(cost, 1)}\n`;
                 lineCount++;
             });
+            lineCount++;
 
             const timeStart = new Date();
             const timeEnd = new Date(timeStart.getTime() + totalTime);
@@ -60,7 +61,7 @@ export async function main(ns) {
 
             lineCount += 4;
 
-            ns.resizeTail(600, 25 * (lineCount + 3) + 25);
+            ns.resizeTail(600, 25 * (lineCount + 4) + 25);
             ns.printf(menuText);
 
             if (!await ns.prompt('Start Grafting?\n' + timeNotification)) break;
@@ -70,7 +71,7 @@ export async function main(ns) {
                 ns.clearLog();
                 let timeToGraft = graftTime(aug);
                 ns.printf(`${menuText}`);
-                ns.printf(`\n Grafting: ${aug} - ${ns.tFormat(timeToGraft)}`);
+                ns.printf(`\n Grafting:\n > ${aug}\n > ${ns.tFormat(timeToGraft)}`);
                 ns.printf(`\n${timeNotification}`);
                 await ns.sleep(timeToGraft + 100);
             }
