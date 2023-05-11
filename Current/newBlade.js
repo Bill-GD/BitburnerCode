@@ -185,7 +185,10 @@ export async function main(ns) {
         operations.forEach(op => opLevel += blade.getActionCurrentLevel('operation', op));
         const averageActionLevel = (contractLevel / contracts.length + opLevel / operations.length) / 2;
 
-        return 100 * Math.pow((1.03 + 1.44) / 2, averageActionLevel - 1) * Math.pow(cityChaos(city) - 49, 0.5);
+        const chaos = cityChaos(city);
+        let chaosBonus = chaos > 50 ? Math.pow(chaos - 49, 0.5) : 1;
+
+        return 100 * Math.pow((1.03 + 1.44) / 2, averageActionLevel - 1) * chaosBonus;
     }
 
     /** If success chance accuracy of ```name``` is insufficient (```[0] != [1]```) starts ```Field Analysis``` */
