@@ -53,6 +53,7 @@ export async function main(ns) {
             count++;
             ns.exec(files[0], server);
         }
+        await ns.sleep(10);
     }
 
     count > 0 && ns.tprintf(` (!) Distributed to ${count} server(s)`);

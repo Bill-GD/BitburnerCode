@@ -52,9 +52,10 @@ export async function main(ns) {
                 const crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
                 setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
             }
+            await ns.sleep(10);
         }
 
-        logTask();
+        await logTask();
 
         const time = new Date();
         ns.printf(
@@ -62,10 +63,10 @@ export async function main(ns) {
             `${time.getHours() < 10 ? '0' : ''}${time.getHours()}:` +
             `${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}`
         );
-        await ns.sleep(60e3);
+        await ns.sleep(600e3);
     }
 
-    function logTask() {
+    async function logTask() {
         ns.clearLog();
         ns.resizeTail(300, 275);
         for (let id = 0; id < numSleeve(); id++) {
@@ -79,6 +80,7 @@ export async function main(ns) {
                     break;
             }
             ns.print(` #${id} (aug=${sl.getSleeveAugmentations(id).length}): ${task}`);
+            await ns.sleep(10);
         }
     }
 

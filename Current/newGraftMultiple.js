@@ -61,19 +61,21 @@ export async function main(ns) {
 
             lineCount += 4;
 
-            ns.resizeTail(600, 25 * (lineCount + 4) + 25);
             ns.printf(menuText);
 
             if (!await ns.prompt('Start Grafting?\n' + timeNotification)) break;
 
+            ns.resizeTail(600, 25 * (lineCount + 4) + 25);
+            
             for (const aug of chosenAugNames) {
                 ns.run('newGraft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
                 ns.clearLog();
                 let timeToGraft = graftTime(aug);
                 ns.printf(`${menuText}`);
-                ns.printf(`\n Grafting:\n > ${aug}\n > ${ns.tFormat(timeToGraft)}`);
+                ns.printf(`\n Grafting-${chosenAugNames.findIndex(a => a === aug) + 1}:\n > ${aug}\n > ${ns.tFormat(timeToGraft)}`);
                 ns.printf(`\n${timeNotification}`);
-                await ns.sleep(timeToGraft + 100);
+                await ns.sleep(timeToGraft);
+                await ns.sleep(50);
             }
 
             ns.printf('INFO: FINISHED GRAFTING');
