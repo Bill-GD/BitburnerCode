@@ -9,6 +9,7 @@ export async function main(ns) {
         for (const p of portExe) {
             if (!ns.fileExists(p, 'home')) {
                 do {
+                    ns.clearLog();
                     ns.print(`Attempting to buy ${p}...`);
                     ns.exec('getPortExe.js', 'home');
 
@@ -21,13 +22,13 @@ export async function main(ns) {
                 if (ns.fileExists(p, 'home')) {
                     ns.print(`Getting root access with ${p}`);
                     ns.exec('getRootAccess.js', 'home');
+                    await ns.sleep(50);
+                    ns.print(`Spreading latest 'hackScript.js'`);
+                    ns.exec('spreadHack.js', 'home');
                 }
             }
-            else ownedExe++;
+            if (ns.fileExists(p, 'home')) ownedExe++;
         }
-
-        ns.print(`Spreading latest 'hackScript.js'`);
-        ns.exec('spreadHack.js', 'home');
 
         if (ownedExe === 5) {
             ns.print('Got all exe. Exiting...');

@@ -116,17 +116,11 @@ export async function main(ns) {
         ns.printf(` city=${city}, chaos=${ns.formatNumber(cityChaos(city))}, pop=${ns.formatNumber(populationOf(city), 2)}`);
     }
 
-    /** 
-     * @purpose Calculates the best city based on the population and chaos (from source code)
-     */
+    /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code) */
     async function checkCity() {
         let citiesCopy = cities.slice();
 
-        let currentCity = blade.getCity();
-        if (populationOf(currentCity) < 5e8) {
-            let index = citiesCopy.findIndex(city => city === currentCity);
-            index > -1 ? citiesCopy.splice(index, 1) : 0;
-        }
+        citiesCopy.filter(c => populationOf(c) > 8e8);
 
         citiesCopy.sort((a, b) => getAverageChance(b) - getAverageChance(a));
         blade.switchCity(citiesCopy[0]);
@@ -144,7 +138,7 @@ export async function main(ns) {
         return Math.min(1, getCompetence(city) / getDifficulty(city));
     }
 
-    /** Calculates the 'ideal' chaos threshold based on the loosely calculated situation of the specified ```city```.
+    /** Calculates the chaos threshold based on the loosely calculated situation of the specified ```city```.
      * @see {@link getAverageChance()}
      */
     function getChaosThreshold(city = '', chance = 1) {
@@ -264,7 +258,8 @@ export async function main(ns) {
      */
     async function regulateChaos() {
         const currentCity = blade.getCity();
-        while (cityChaos(currentCity) > getChaosThreshold(currentCity, 0.5)) {
+        while ((successChance('black op', currentBlackOp) < 1 || successChance('operation', operations[operations.length - 1]) < 1)
+            && cityChaos(currentCity) > getChaosThreshold(currentCity, 0.5)) {
             await performAction('general', generalActions[3]);
             await ns.sleep(10);
         }
@@ -272,15 +267,21 @@ export async function main(ns) {
 
     /** Perform the current black op if ```chance === 100%``` and ```rank``` is sufficient */
     async function checkBlackOps() {
-        await checkAccuracy('black op', currentBlackOp);
-        if (blade.getRank() >= blade.getBlackOpRank(currentBlackOp) && successChance('black op', currentBlackOp)[0] >= 1) {
+        while (true) {
+            if (currentBlackOp === '') { // Daedalus is done
+                ns.alert(`=====  Operation Daedalus is accomplished  =====\n(!) Destroy this BitNode when you're ready (!)`);
+                blade.stopBladeburnerAction();
+                ns.closeTail();
+                ns.exit();
+            }
+            if (blade.getRank() < blade.getBlackOpRank(currentBlackOp)) return;
+            await checkAccuracy('black op', currentBlackOp);
+            if (successChance('black op', currentBlackOp)[0] < 1) return;
+
             await performAction('black op', currentBlackOp);
             await upgradeSkills();
             currentBlackOp = getCurrentBlackOp();
-            if (currentBlackOp === blackOps[blackOps.length - 1]) {
-                ns.alert(`(!) Operation Daedalus is accomplished (!)\n(!) Destroy this BitNode when you're ready (!)`);
-                ns.exit();
-            }
+            await ns.sleep(10);
         }
     }
 

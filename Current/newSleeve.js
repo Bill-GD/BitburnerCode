@@ -73,7 +73,7 @@ export async function main(ns) {
             let task = sl.getTask(id);
             switch (task.type.toLowerCase()) {
                 case 'recovery':
-                    task = 'Recovery (' + getSleeve(id).shock + ')';
+                    task = 'Recovery (' + ns.formatNumber(getSleeve(id).shock, 2) + ')';
                     break;
                 case 'crime':
                     task = task.crimeType + ' (' + ns.formatPercent(crimeChance(id, task.crimeType), 1) + ')';
