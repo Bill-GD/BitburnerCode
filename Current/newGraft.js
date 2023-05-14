@@ -58,7 +58,8 @@ export async function main(ns) {
                 }
                 else if (sortOption === 'special' &&
                     (name === 'Neuroreceptor Management Implant' ||
-                        name === 'nickofolas Congruity Implant'))
+                        name === 'nickofolas Congruity Implant' ||
+                        name === `The Blade's Simulacrum`))
                     ns.printf(` ${id}. ${name} - $${ns.formatNumber(cost, 1)} - ${checkMoney(cost).toString().toUpperCase()}`);
                 else {
                     let done = false;
@@ -106,15 +107,13 @@ export async function main(ns) {
                 lineCount += 2;
             }
 
-            let stats = getAugStats(chosenAug);
-            if (checkKey(stats) === false) ns.printf(`INFO: This aug doesn't have any specific stat`);
+            let stats = Object.entries(getAugStats(chosenAug)).filter(([type, mult]) => mult !== 1);
+            if (stats.length === 0) ns.printf(`INFO: This aug doesn't have any specific stat`);
             else {
                 ns.printf(' Stat:');
-                Object.entries(stats).forEach(([type, mult]) => {
-                    if (mult !== 1) {
-                        ns.print(`  > ${type}: +${ns.formatPercent(mult - 1, 1)}`);
-                        lineCount++;
-                    }
+                stats.forEach(([type, mult]) => {
+                    ns.print(`  > ${type}: +${ns.formatPercent(mult - 1, 1)}`);
+                    lineCount++;
                 });
                 lineCount++;
             }
@@ -153,27 +152,21 @@ export async function main(ns) {
             }
             if (graft.graftAugmentation(chosenAug, focus) === true) {
                 if (!flagOptions.multiple) {
-                    ns.resizeTail(600, 125);
-                    if (await ns.prompt('Show time?')) {
+                    ns.resizeTail(600, 130);
+                    const showTime = await ns.prompt('Show time?');
+                    if (showTime) {
                         ns.printf(` Time to graft\n ${chosenAug} (ID=${id}, cost=$${ns.formatNumber(augGraftCost(chosenAug), 1)}):`);
                         ns.printf(`  > ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`);
                     }
                     else
                         ns.printf(` Currently grafting: ${chosenAug}`);
                 }
+                else ns.closeTail();
             }
             else
                 ns.printf(`ERROR: Hasn't grafted prerequisites of ${chosenAug}`);
-            ns.closeTail();
             ns.exit();
         }
-    }
-
-    function checkKey(obj) {
-        for (let k in obj) {
-            if (obj.hasOwnProperty(k)) return true;
-        }
-        return false;
     }
 
     function checkMisc(augName) {

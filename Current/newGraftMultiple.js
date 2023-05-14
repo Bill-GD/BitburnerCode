@@ -6,6 +6,8 @@ export async function main(ns) {
     const graft = ns.grafting;
     const augGraftCost = aug => graft.getAugmentationGraftPrice(aug);
     const graftTime = aug => graft.getAugmentationGraftTime(aug);
+    const getPrereq = aug => ns.singularity.getAugmentationPrereq(aug);
+    const getOwned = () => ns.singularity.getOwnedAugmentations();
 
     const graftableAugs = graft.getGraftableAugmentations();
     graftableAugs.sort((a, b) => augGraftCost(a) - augGraftCost(b));
@@ -42,15 +44,38 @@ export async function main(ns) {
             chosenAugNames.forEach(aug => totalCost += augGraftCost(aug));
             menuText += ` Augs to graft (total=${chosenAugNames.length}, cost=$${ns.formatNumber(totalCost, 1)}):\n`;
 
+            // sort prerequisites
+            // only for egde cases where prerequisite(s) has/have less cost
+            for (let augIndex = 0; augIndex < chosenAugNames.length; augIndex++) {
+                const prereqs = getPrereq(chosenAugNames[augIndex]);
+                // skip if no prereq
+                if (prereqs.length <= 0) continue;
+                // loop from last -> current aug will be moved to after these prereqs
+                for (let preIndex = prereqs.length - 1; preIndex > 0; preIndex--)
+                    // process only if in queued list
+                    if (chosenAugNames.includes(prereqs[preIndex])) {
+                        const index = chosenAugNames.findIndex(a => a === prereqs[preIndex]);
+                        // move if current aug is not after all prereqs
+                        // break afterward -> next aug
+                        if (index > augIndex) {
+                            [chosenAugNames[augIndex], chosenAugNames[index]] = [chosenAugNames[index], chosenAugNames[augIndex]];
+                            augIndex--;
+                            break;
+                        }
+                    }
+            }
+
+            // prints out all augs & calculates time
             Object.entries(chosenAugNames).forEach(([i, aug]) => {
                 const cost = augGraftCost(aug);
                 totalCost += cost;
                 totalTime += graftTime(aug);
-                menuText += `  > ${chosenAugIDs[i]}. ${aug} - $${ns.formatNumber(cost, 1)}\n`;
+                menuText += `  > ${graftableAugs.findIndex(a => a === aug)}. ${aug} - $${ns.formatNumber(cost, 1)}\n`;
                 lineCount++;
             });
             lineCount++;
 
+            // process time info
             const timeStart = new Date();
             const timeEnd = new Date(timeStart.getTime() + totalTime);
             let timeNotification =
@@ -66,7 +91,8 @@ export async function main(ns) {
             if (!await ns.prompt('Start Grafting?\n' + timeNotification)) break;
 
             ns.resizeTail(600, 25 * (lineCount + 4) + 25);
-            
+
+            // starts grafting
             for (const aug of chosenAugNames) {
                 ns.run('newGraft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
                 ns.clearLog();
@@ -75,7 +101,7 @@ export async function main(ns) {
                 ns.printf(`\n Grafting-${chosenAugNames.findIndex(a => a === aug) + 1}:\n > ${aug}\n > ${ns.tFormat(timeToGraft)}`);
                 ns.printf(`\n${timeNotification}`);
                 await ns.sleep(timeToGraft);
-                await ns.sleep(50);
+                await ns.sleep(200);
             }
 
             ns.printf('INFO: FINISHED GRAFTING');
@@ -84,12 +110,26 @@ export async function main(ns) {
 
     /** @return ```true``` if all prerequisites are grafted or chosen to be grafted, ```false``` otherwise. */
     function checkPrereq(augName) {
-        let prereq = ns.singularity.getAugmentationPrereq(augName);
+        // if not owned and chosen, return false
+        return checkPrereqOwned(augName) || checkPrereqPurchased(augName);
+    }
+
+    function checkPrereqPurchased(augName) {
+        const prereq = getPrereq(augName);
         if (prereq.length === 0) return true;
         prereq.forEach((req) => {
-            // if not owned and chosen, return false
-            if (!chosenAugNames.includes(req) &&
-                !ns.singularity.getOwnedAugmentations().includes(req))
+            if (!chosenAugNames.includes(req))
+                return false;
+        });
+        return true;
+    }
+
+    function checkPrereqOwned(augName) {
+        const prereq = getPrereq(augName);
+        const owned = getOwned();
+        if (prereq.length === 0) return true;
+        prereq.forEach((req) => {
+            if (!owned.includes(req))
                 return false;
         });
         return true;

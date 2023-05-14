@@ -13,6 +13,7 @@ export async function main(ns) {
                     ns.print(`Attempting to buy ${p}...`);
                     ns.exec('getPortExe.js', 'home');
 
+                    await ns.sleep(1000);
                     if (ns.fileExists(p, 'home')) break;
 
                     ns.print(`Failed to buy ${p}`);
@@ -23,11 +24,13 @@ export async function main(ns) {
                     ns.print(`Getting root access with ${p}`);
                     ns.exec('getRootAccess.js', 'home');
                     await ns.sleep(50);
-                    ns.print(`Spreading latest 'hackScript.js'`);
-                    ns.exec('spreadHack.js', 'home');
                 }
             }
-            if (ns.fileExists(p, 'home')) ownedExe++;
+            if (ns.fileExists(p, 'home')) {
+                ownedExe++;
+                ns.print(`Spreading latest 'hackScript.js'`);
+                ns.exec('spreadHack.js', 'home');
+            }
         }
 
         if (ownedExe === 5) {
