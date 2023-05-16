@@ -1,4 +1,4 @@
-// Version 4.6
+// Version 4.6.1
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
@@ -43,46 +43,45 @@ export async function main(ns) {
         await upgradeSkills();
 
         // contracts
-        await checkAccuracy('contract', contracts[0]);
-        while (successChance('contract', contracts[0])[0] >= 0.7) {
+        await checkAccuracy('contract', 'Tracking');
+        if (successChance('contract', 'Tracking')[0] >= 0.7 &&
+            successChance('operation', 'Investigation')[0] < 0.8) {
             await checkCity();
             for (const con of contracts) {
                 await checkBlackOps();
                 await checkAccuracy('contract', con);
-                if (successChance('contract', con) < 0.7) continue;
+                if (successChance('contract', con)[0] < 0.7) continue;
                 await performAction('contract', con, Math.min(10, actionCount('contract', con)));
                 await upgradeSkills();
                 await ns.sleep(10);
             }
             await regulateChaos();
             await increaseWorkCount();
-            await ns.sleep(10);
         }
 
         // operations
-        await checkAccuracy('operation', operations[0]);
-        while (successChance('operation', operations[0])[0] >= 0.8) {
+        await checkAccuracy('operation', 'Investigation');
+        if (successChance('operation', 'Investigation')[0] >= 0.8) {
             await checkCity();
             for (const op of operations) {
                 await checkBlackOps();
                 await checkAccuracy('operation', op);
-                if (successChance('operation', op) < 0.8) continue;
+                if (successChance('operation', op)[0] < 0.8) continue;
                 await performAction('operation', op, Math.min(10, actionCount('operation', op)));
                 await upgradeSkills();
                 await ns.sleep(10);
             }
             await regulateChaos();
             await increaseWorkCount();
-            await ns.sleep(10);
         }
 
         await checkBlackOps();
         await ns.sleep(10);
     }
 
-    function logAction(type = '', name = '') {
-        ns.moveTail(1675, 815);
-        ns.resizeTail(425, 200);
+    function logAction(type = '', name = '', count = 1) {
+        ns.moveTail(1590, 815);
+        ns.resizeTail(525, 210);
         const city = blade.getCity();
         ns.clearLog();
         ns.print(
@@ -90,13 +89,14 @@ export async function main(ns) {
             `, Investigation: ${ns.formatPercent(successChance('operation', 'Investigation')[0], 1)}\n` +
             (currentBlackOp !== '' ? ` ${currentBlackOp}: ${ns.formatPercent(successChance('black op', currentBlackOp)[0], 1)}` : '')
         );
-        ns.printf(` action=${type}\n > ${name}`);
+        ns.printf(` Current action: ${type}\n > ${name}${count > 1 ? ` x${count}` : ''}`);
         ns.printf(' ----------------------------------');
         ns.printf(
-            ` rank=${ns.formatNumber(blade.getRank())}/${ns.formatNumber(blade.getBlackOpRank(currentBlackOp))}` +
-            `, SP=${ns.formatNumber(blade.getSkillPoints())}`
+            ` Rank: ${ns.formatNumber(blade.getRank())}/${ns.formatNumber(blade.getBlackOpRank(currentBlackOp))}` +
+            `, SP: ${ns.formatNumber(blade.getSkillPoints())}` +
+            `, Stamina: ${ns.formatNumber(blade.getStamina()[0], 1)}/${ns.formatNumber(blade.getStamina()[1], 1)}`
         );
-        ns.printf(` city=${city}, chaos=${ns.formatNumber(cityChaos(city))}, pop=${ns.formatNumber(populationOf(city))}`);
+        ns.printf(` City: ${city}, Chaos: ${ns.formatNumber(cityChaos(city))}, Pop: ${ns.formatNumber(populationOf(city))}`);
     }
 
     /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code) */
@@ -181,9 +181,12 @@ export async function main(ns) {
     async function performAction(type = '', action = '', count = 1, stamina = true) {
         stamina && await checkStamina();
         if (type === 'general' || type === 'contract' || type === 'operation' || type === 'black op') {
-            if (blade.startAction(type, action)) {
-                logAction(currentAction().type, currentAction().name);
-                await ns.sleep(actionTime(type, action) * count / (actionTime(type, action) > 5e3 ? bonusTime() : 1));
+            for (let i = 0; i < count; i++) {
+                if (blade.startAction(type, action)) {
+                    logAction(currentAction().type, currentAction().name, i + 1);
+                    await ns.sleep(Math.max(1e3, actionTime(type, action) / bonusTime()));
+                }
+                await ns.sleep(10);
             }
         }
         else {
@@ -199,7 +202,7 @@ export async function main(ns) {
                 await performAction('general', 'Hyperbolic Regeneration Chamber', 1, false);
     }
 
-    function bonusTime() { return blade.getBonusTime() > 3000 ? 5 : 1; }
+    function bonusTime() { return blade.getBonusTime() > 1e3 ? 5 : 1; }
 
     /** Continuously upgrade skill while SP is sufficient. */
     async function upgradeSkills() {
@@ -216,6 +219,9 @@ export async function main(ns) {
         chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
 
         while (blade.getSkillPoints() >= requiredSP(chosenSkills[0])) {
+            if (chosenSkills[0] === 'Overclock' && skillLvl(chosenSkills[0]) >= 90 ||
+                chosenSkills[0] === 'Hyperdrive' && skillLvl(chosenSkills[0]) >= 20)
+                chosenSkills.splice(0, 1);
             logAction('Upgrade Skill', chosenSkills[0]);
             blade.upgradeSkill(chosenSkills[0]);
             chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
@@ -229,7 +235,7 @@ export async function main(ns) {
     async function increaseWorkCount() {
         // - Incite Violence -> work count++, chaos++
         // - Diplomacy -> chaos--, can ignore if chance is sufficient
-        while (actionCount('contract', contracts[0]) <= 100 || actionCount('operation', operations[0]) <= 100) {
+        while (actionCount('contract', 'Retirement') <= 0 || actionCount('operation', 'Assassination') <= 0) {
             await performAction('general', 'Incite Violence');
             await ns.sleep(10);
         }
@@ -241,7 +247,9 @@ export async function main(ns) {
      */
     async function regulateChaos() {
         const currentCity = blade.getCity();
-        while ((successChance('black op', currentBlackOp)[0] < 1 || successChance('operation', operations[operations.length - 1])[0] < 1)
+        if (cityChaos(currentCity) <= 50) return;
+
+        while ((successChance('black op', currentBlackOp)[0] < 1 || successChance('operation', 'Assassination')[0] < 1)
             && cityChaos(currentCity) > getChaosThreshold(currentCity, 0.3)) {
             await performAction('general', 'Diplomacy');
             await performAction('general', 'Training');
