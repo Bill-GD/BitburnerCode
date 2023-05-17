@@ -1,4 +1,7 @@
-// Version 2.1
+/** Version 2.2
+ * Added presets: Crime, Infiltrate, Diplomacy
+ * Task assignment is now outside of the main loop
+*/
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
@@ -51,82 +54,101 @@ export async function main(ns) {
         'Take on contracts'
     ];
 
-    let sleeveIDs = [];
-    for (let i = 0; i < numSleeve(); i++)
-        sleeveIDs.push(i);
-    let sleeves = Array(numSleeve()).fill().map(() => [null, null]);
+    let preset = await ns.prompt('Use preset?', { 'type': 'select', 'choices': ['All Crime', 'All Infiltrate', 'All Diplomacy', 'None'] });
+    let sleeves = [];
 
-    let notification = '';
-    selectID: while (!sleeves.every(([t, a]) => t !== null)) {
-        let selectedSleeve = await ns.prompt(
-            `${notification}` +
-            `Choose sleeve:\n` +
-            `Confirm -> Confirm task assignments\n` +
-            `Exit -> Exit program\n\n` +
-            `'null' -> no change will be made\n` +
-            `${getSleevesString()}`,
-            { 'type': 'select', 'choices': [...sleeveIDs, 'Confirm', 'Exit'] }
-        );
-        if (selectedSleeve === 'Exit') ns.exit();
-        if (selectedSleeve === 'Confirm') break;
-        if (selectedSleeve === '') {
-            notification = '(!) No sleeve selected\n\n';
-            continue;
-        }
+    switch (preset) {
+        case 'All Crime':
+            sleeves = Array(numSleeve()).fill().map(() => ['Crime', null]);
+            break;
+        case 'All Infiltrate':
+            sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Infiltrate synthoids']);
+            break;
+        case 'All Diplomacy':
+            sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Diplomacy']);
+            break;
+    }
 
-        notification = '';
-        let chosenOption = '';
-        let chosenAction = '';
-        while (chosenAction === '') {
-            chosenOption = await ns.prompt(
-                `${notification}Chosen sleeve:\n` +
-                `${selectedSleeve}: ${sleeves[selectedSleeve][0]} - ${sleeves[selectedSleeve][1]}\n\n` +
-                `Choose action type for sleeve:`,
-                { 'type': 'select', 'choices': ['Recovery', 'Crime', 'Blade', 'Choose ID'] });
-            if (chosenOption === '') {
-                chosenAction = '';
-                notification = '(!) No action type selected\n\n';
+    if (preset === 'None') {
+        sleeves = Array(numSleeve()).fill().map(() => [null, null]);
+
+        let notification = '';
+        selectID: while (!sleeves.every(([t, a]) => t !== null)) {
+            let sleeveIDs = [];
+            for (let i = 0; i < numSleeve(); i++)
+                sleeveIDs.push(i);
+            let selectedSleeve = await ns.prompt(
+                `${notification}` +
+                `Choose sleeve:\n` +
+                `Confirm -> Confirm task assignments\n` +
+                `Exit -> Exit program\n\n` +
+                `'null' -> no change will be made\n` +
+                `${getSleevesString()}`,
+                { 'type': 'select', 'choices': [...sleeveIDs, 'Confirm', 'Exit'] }
+            );
+            if (selectedSleeve === 'Exit') ns.exit();
+            if (selectedSleeve === 'Confirm') break;
+            if (selectedSleeve === '') {
+                notification = '(!) No sleeve selected\n\n';
                 continue;
             }
-            if (chosenOption === 'Choose ID') {
-                notification = '';
-                continue selectID;
-            }
-            if (chosenOption === 'Recovery' && getSleeve(selectedSleeve).shock <= 0) {
-                notification = `(!) Sleeve ${selectedSleeve} shock is 0`;
-                continue;
-            }
-            sleeves[selectedSleeve][0] = chosenOption;
-            if (chosenOption === 'Recovery' || chosenOption === 'Crime') break;
-            if (chosenOption === 'Blade') {
-                chosenAction = await ns.prompt(
-                    'Choose Bladeburner action',
-                    { 'type': 'select', 'choices': bladeActions }
-                );
-                if (chosenAction !== '') sleeves[selectedSleeve][1] = chosenAction;
+
+            notification = '';
+            let chosenOption = '';
+            let chosenAction = '';
+            while (chosenAction === '') {
+                chosenOption = await ns.prompt(
+                    `${notification}Chosen sleeve:\n` +
+                    `${selectedSleeve}: ${sleeves[selectedSleeve][0]} - ${sleeves[selectedSleeve][1]}\n\n` +
+                    `Choose action type for sleeve:`,
+                    { 'type': 'select', 'choices': ['Recovery', 'Crime', 'Blade', 'Choose ID'] });
+                if (chosenOption === '') {
+                    chosenAction = '';
+                    notification = '(!) No action type selected\n\n';
+                    continue;
+                }
+                if (chosenOption === 'Choose ID') {
+                    notification = '';
+                    continue selectID;
+                }
+                if (chosenOption === 'Recovery' && getSleeve(selectedSleeve).shock <= 0) {
+                    notification = `(!) Sleeve ${selectedSleeve} shock is 0`;
+                    continue;
+                }
+                sleeves[selectedSleeve][0] = chosenOption;
+                if (chosenOption === 'Recovery' || chosenOption === 'Crime') break;
+                if (chosenOption === 'Blade') {
+                    chosenAction = await ns.prompt(
+                        'Choose Bladeburner action',
+                        { 'type': 'select', 'choices': bladeActions }
+                    );
+                    if (chosenAction !== '') sleeves[selectedSleeve][1] = chosenAction;
+                }
             }
         }
     }
 
+    sleeves.forEach(([type, action], id) => {
+        if (!type) return;
+
+        if (type === 'Recovery')
+            setRecover(id);
+        else if (type === 'Crime') {
+            const crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
+            setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
+        }
+        else if (type === 'Blade' && action)
+            setBladeWork(id, action);
+    });
+
     while (true) {
-        sleeves.forEach(([type, action], id) => {
+        sleeves.forEach(([t, a], id) => {
             const augs = getAugs(id);
             augs.sort((a, b) => a.cost - b.cost)
                 .filter(a => a.cost < playerMoney() / (augs.length * numSleeve()))
                 .forEach(aug => {
                     if (getSleeve(id).shock <= 0) installAug(id, aug.name);
                 });
-
-            if (!type) return;
-
-            if (type === 'Recovery')
-                setRecover(id);
-            else if (type === 'Crime') {
-                const crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
-                setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
-            }
-            else if (type === 'Blade' && action)
-                setBladeWork(id, action);
         });
 
         logTask();

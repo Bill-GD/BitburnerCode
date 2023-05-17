@@ -1,3 +1,6 @@
+/** Version 2.1.1
+ * Renamed to match old verison
+ */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
@@ -32,7 +35,7 @@ export async function main(ns) {
             ns.alert('NO Augmentations were chosen');
             break;
         case 1:
-            ns.run('newGraft.js', 1, '--script', '--chosenAugName', chosenAugNames[0]);
+            ns.run('graft.js', 1, '--script', '--chosenAugName', chosenAugNames[0]);
             break;
         default:
             ns.tail();
@@ -94,7 +97,7 @@ export async function main(ns) {
 
             // starts grafting
             for (const aug of chosenAugNames) {
-                ns.run('newGraft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
+                ns.run('graft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
                 ns.clearLog();
                 let timeToGraft = graftTime(aug);
                 ns.printf(`${menuText}`);

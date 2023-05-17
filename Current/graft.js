@@ -1,3 +1,6 @@
+/** Version 2.1.3
+ * Renamed to match old version
+ */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
@@ -24,7 +27,7 @@ export async function main(ns) {
         option = 'graft';
     else {
         ns.tail();
-        ns.moveTail(300, 250);
+        ns.moveTail(150, 250);
         option = await ns.prompt(
             'Choose option:\nlist: list augmentations\ninfo: get info of augmentation\ngraft: start grafting',
             { 'type': 'select', 'choices': ['list', 'info', 'graft'] }
