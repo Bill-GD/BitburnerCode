@@ -1,3 +1,4 @@
+// Version 2.1
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
@@ -14,10 +15,11 @@ export async function main(ns) {
     const getAugs = id => sl.getSleevePurchasableAugs(id);
     const installAug = (id, aug) => sl.purchaseSleeveAug(id, aug);
 
-    const recover = id => sl.setToShockRecovery(id);
+    const setRecover = id => sl.setToShockRecovery(id);
     const setCrimeTask = (id, crime) => sl.setToCommitCrime(id, crime);
     const crimeChance = (id, crime) => ns.formulas.work.crimeSuccessChance(getSleeve(id), crime);
     const crimeStats = crime => ns.singularity.getCrimeStats(crime);
+    const setBladeWork = (id, task) => sl.setToBladeburnerAction(id, task);
 
     // const
     // sort the ratio between time and exp gain of crimes with time <= 60s
@@ -39,23 +41,95 @@ export async function main(ns) {
         .sort((a, b) => compareCrimeStats(b, a))
         .filter(a => crimeStats(a).time <= 60e3);
 
+    const bladeActions = [
+        'Field analysis',
+        'Recruitment',
+        'Diplomacy',
+        'Hyperbolic Regeneration Chamber',
+        'Infiltrate synthoids',
+        'Support main sleeve',
+        'Take on contracts'
+    ];
+
+    let sleeveIDs = [];
+    for (let i = 0; i < numSleeve(); i++)
+        sleeveIDs.push(i);
+    let sleeves = Array(numSleeve()).fill().map(() => [null, null]);
+
+    let notification = '';
+    selectID: while (!sleeves.every(([t, a]) => t !== null)) {
+        let selectedSleeve = await ns.prompt(
+            `${notification}` +
+            `Choose sleeve:\n` +
+            `Confirm -> Confirm task assignments\n` +
+            `Exit -> Exit program\n\n` +
+            `'null' -> no change will be made\n` +
+            `${getSleevesString()}`,
+            { 'type': 'select', 'choices': [...sleeveIDs, 'Confirm', 'Exit'] }
+        );
+        if (selectedSleeve === 'Exit') ns.exit();
+        if (selectedSleeve === 'Confirm') break;
+        if (selectedSleeve === '') {
+            notification = '(!) No sleeve selected\n\n';
+            continue;
+        }
+
+        notification = '';
+        let chosenOption = '';
+        let chosenAction = '';
+        while (chosenAction === '') {
+            chosenOption = await ns.prompt(
+                `${notification}Chosen sleeve:\n` +
+                `${selectedSleeve}: ${sleeves[selectedSleeve][0]} - ${sleeves[selectedSleeve][1]}\n\n` +
+                `Choose action type for sleeve:`,
+                { 'type': 'select', 'choices': ['Recovery', 'Crime', 'Blade', 'Choose ID'] });
+            if (chosenOption === '') {
+                chosenAction = '';
+                notification = '(!) No action type selected\n\n';
+                continue;
+            }
+            if (chosenOption === 'Choose ID') {
+                notification = '';
+                continue selectID;
+            }
+            if (chosenOption === 'Recovery' && getSleeve(selectedSleeve).shock <= 0) {
+                notification = `(!) Sleeve ${selectedSleeve} shock is 0`;
+                continue;
+            }
+            sleeves[selectedSleeve][0] = chosenOption;
+            if (chosenOption === 'Recovery' || chosenOption === 'Crime') break;
+            if (chosenOption === 'Blade') {
+                chosenAction = await ns.prompt(
+                    'Choose Bladeburner action',
+                    { 'type': 'select', 'choices': bladeActions }
+                );
+                if (chosenAction !== '') sleeves[selectedSleeve][1] = chosenAction;
+            }
+        }
+    }
+
     while (true) {
-        for (let id = 0; id < numSleeve(); id++) {
+        sleeves.forEach(([type, action], id) => {
             const augs = getAugs(id);
             augs.sort((a, b) => a.cost - b.cost)
                 .filter(a => a.cost < playerMoney() / (augs.length * numSleeve()))
-                .forEach(aug => installAug(id, aug.name));
+                .forEach(aug => {
+                    if (getSleeve(id).shock <= 0) installAug(id, aug.name);
+                });
 
-            if (getSleeve(id).shock > 0)
-                recover(id);
-            else {
+            if (!type) return;
+
+            if (type === 'Recovery')
+                setRecover(id);
+            else if (type === 'Crime') {
                 const crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
                 setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
             }
-            await ns.sleep(10);
-        }
+            else if (type === 'Blade' && action)
+                setBladeWork(id, action);
+        });
 
-        await logTask();
+        logTask();
 
         const time = new Date();
         ns.printf(
@@ -66,21 +140,26 @@ export async function main(ns) {
         await ns.sleep(600e3);
     }
 
-    async function logTask() {
+    function logTask() {
         ns.clearLog();
-        ns.resizeTail(300, 275);
+        ns.resizeTail(450, 280);
         for (let id = 0; id < numSleeve(); id++) {
             let task = sl.getTask(id);
             switch (task.type.toLowerCase()) {
+                case 'bladeburner':
+                    task = task.actionName;
+                    break;
                 case 'recovery':
                     task = 'Recovery (' + ns.formatNumber(getSleeve(id).shock, 2) + ')';
                     break;
                 case 'crime':
                     task = task.crimeType + ' (' + ns.formatPercent(crimeChance(id, task.crimeType), 1) + ')';
                     break;
+                default:
+                    task = task.type[0] + task.type.substring(1).toLowerCase();
+                    break;
             }
             ns.print(` #${id} (aug=${sl.getSleeveAugmentations(id).length}): ${task}`);
-            await ns.sleep(10);
         }
     }
 
@@ -104,5 +183,11 @@ export async function main(ns) {
             score2 /= stats2.time;
             return score1 - score2;
         } catch (error) { }
+    }
+
+    function getSleevesString() {
+        let string = '';
+        sleeves.forEach(([type, action], id) => string += `${id}: ${type} - ${action}\n`);
+        return string;
     }
 }
