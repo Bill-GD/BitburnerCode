@@ -60,9 +60,7 @@ export async function main(ns) {
                     ns.tprintf(` ${id}. ${name} - $${ns.formatNumber(cost, 1)} - ${checkMoney(cost).toString().toUpperCase()}`);
                 }
                 else if (sortOption === 'special' &&
-                    (name === 'Neuroreceptor Management Implant' ||
-                        name === 'nickofolas Congruity Implant' ||
-                        name === `The Blade's Simulacrum`))
+                    (name.includes('Neuroreceptor') || name.includes('nickofolas') || name.includes(`The Blade`)))
                     ns.printf(` ${id}. ${name} - $${ns.formatNumber(cost, 1)} - ${checkMoney(cost).toString().toUpperCase()}`);
                 else {
                     let done = false;
@@ -118,12 +116,11 @@ export async function main(ns) {
                     ns.print(`  > ${type}: +${ns.formatPercent(mult - 1, 1)}`);
                     lineCount++;
                 });
-                lineCount++;
             }
 
-            lineCount += 3;
+            lineCount += 4;
 
-            ns.resizeTail(600, 25 * lineCount + 25);
+            ns.resizeTail(600, 25 * lineCount + 30);
 
             ns.printf(`\n Time: ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`);
             ns.exit();

@@ -39,7 +39,7 @@ export async function main(ns) {
     });
 
     // need to get list of possible suffixes
-    const suffixes = ['k', 'm', 'b', 't', 'q', 'Q', 's', 'S', 'n'];
+    const suffixes = ['k', 'm', 'b', 't', 'q', 'Q', 's', 'S', 'o', 'n'];
     let loss = 0, gain = 0;
     let lossStr = '', gainStr = '';
     let totalMoney = 0, totalMoneyStr = '';
