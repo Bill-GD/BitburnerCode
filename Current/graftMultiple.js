@@ -1,5 +1,8 @@
-/** Version 2.1.1
- * Renamed to match old verison
+/** Version 2.2
+ * Revert prereqs sorting
+ * Now removes prereq if:
+ * - prereq is not owned and not chosen
+ * - prereq is not owned, chosen but is placed after current aug
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -21,14 +24,11 @@ export async function main(ns) {
         { 'type': 'text' }
     );
     if (stringID.length === 0) ns.exit();
-    const chosenAugIDs = stringID.split(' ').map((id) => parseInt(id)).sort((a, b) => a - b);
-
-    let chosenAugNames = [];
-    chosenAugIDs.forEach(id => {
-        if (id < 0 || id >= graftableAugs.length) return;
-        if (!checkPrereq(graftableAugs[id])) return;
-        chosenAugNames.push(graftableAugs[id]);
-    });
+    const chosenAugIDs = stringID.split(' ')
+        .map(id => parseInt(id))
+        .sort((a, b) => a - b);
+    let chosenAugNames = chosenAugIDs.map((id) => graftableAugs[id]);
+    chosenAugNames = chosenAugNames.filter(aug => checkPrereq(aug));
 
     switch (chosenAugNames.length) {
         case 0:
@@ -46,27 +46,6 @@ export async function main(ns) {
 
             chosenAugNames.forEach(aug => totalCost += augGraftCost(aug));
             menuText += ` Augs to graft (total=${chosenAugNames.length}, cost=$${ns.formatNumber(totalCost, 1)}):\n`;
-
-            // sort prerequisites
-            // only for egde cases where prerequisite(s) has/have less cost
-            for (let augIndex = 0; augIndex < chosenAugNames.length; augIndex++) {
-                const prereqs = getPrereq(chosenAugNames[augIndex]);
-                // skip if no prereq
-                if (prereqs.length <= 0) continue;
-                // loop from last -> current aug will be moved to after these prereqs
-                for (let preIndex = prereqs.length - 1; preIndex > 0; preIndex--)
-                    // process only if in queued list
-                    if (chosenAugNames.includes(prereqs[preIndex])) {
-                        const index = chosenAugNames.findIndex(a => a === prereqs[preIndex]);
-                        // move if current aug is not after all prereqs
-                        // break afterward -> next aug
-                        if (index > augIndex) {
-                            [chosenAugNames[augIndex], chosenAugNames[index]] = [chosenAugNames[index], chosenAugNames[augIndex]];
-                            augIndex--;
-                            break;
-                        }
-                    }
-            }
 
             // prints out all augs & calculates time
             Object.entries(chosenAugNames).forEach(([i, aug]) => {
@@ -111,29 +90,22 @@ export async function main(ns) {
             break;
     }
 
-    /** @return ```true``` if all prerequisites are grafted or chosen to be grafted, ```false``` otherwise. */
+    /** @return ```true``` if all prerequisites are grafted or chosen to be grafted in the right order, ```false``` otherwise. */
     function checkPrereq(augName) {
-        // if not owned and chosen, return false
-        return checkPrereqOwned(augName) || checkPrereqPurchased(augName);
-    }
+        const prereqs = getPrereq(augName);
+        if (prereqs.length === 0) return true;
 
-    function checkPrereqPurchased(augName) {
-        const prereq = getPrereq(augName);
-        if (prereq.length === 0) return true;
-        prereq.forEach((req) => {
-            if (!chosenAugNames.includes(req))
+        const augIndex = chosenAugNames.findIndex(aug => aug === augName);
+        prereqs.forEach((prereq) => {
+            // if not owned
+            if (!getOwned().includes(prereq)) {
+                // if chosen
+                // removes if prereq is after current aug
+                if (chosenAugNames.includes(prereq))
+                    return chosenAugNames.findIndex(aug => aug === prereq) < augIndex;
+                // false if not chosen
                 return false;
-        });
-        return true;
-    }
-
-    function checkPrereqOwned(augName) {
-        const prereq = getPrereq(augName);
-        const owned = getOwned();
-        if (prereq.length === 0) return true;
-        prereq.forEach((req) => {
-            if (!owned.includes(req))
-                return false;
+            }
         });
         return true;
     }

@@ -1,4 +1,17 @@
-// Version 4.6.1
+/** Version 4.6.2
+ * * Changed checkCity
+ *  - Population lower limit: 1b
+ *  - Actually select most populated city now
+ * * Fixed difficultyFac:
+ *  - Was: 1.44
+ *  - Now: 1.044
+ *  - The average was increased by 0.2 because of this
+ * 
+ * * Changed work count check: increase if any contract/operation has ran out
+ * ! Consider removing this feature:
+ *  - Each 'Incite Violence' completed: 0-1 work, 50-100 chaos (too much)
+ *  - Sleeves can 'Infiltrate': no chaos increase, potentially infinite work, separated script, 8 sleeves
+*/
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
@@ -46,8 +59,8 @@ export async function main(ns) {
         await checkAccuracy('contract', 'Tracking');
         if (successChance('contract', 'Tracking')[0] >= 0.7 &&
             successChance('operation', 'Investigation')[0] < 0.8) {
-            await checkCity();
-            for (const con of contracts) {
+                for (const con of contracts) {
+                await checkCity();
                 await checkBlackOps();
                 await checkAccuracy('contract', con);
                 if (successChance('contract', con)[0] < 0.7) continue;
@@ -62,8 +75,8 @@ export async function main(ns) {
         // operations
         await checkAccuracy('operation', 'Investigation');
         if (successChance('operation', 'Investigation')[0] >= 0.8) {
-            await checkCity();
             for (const op of operations) {
+                await checkCity();
                 await checkBlackOps();
                 await checkAccuracy('operation', op);
                 if (successChance('operation', op)[0] < 0.8) continue;
@@ -80,8 +93,8 @@ export async function main(ns) {
     }
 
     function logAction(type = '', name = '', count = 1) {
-        ns.moveTail(1590, 815);
-        ns.resizeTail(525, 210);
+        ns.moveTail(1655, 815);
+        ns.resizeTail(460, 230);
         const city = blade.getCity();
         ns.clearLog();
         ns.print(
@@ -92,10 +105,9 @@ export async function main(ns) {
         ns.printf(` Current action: ${type}\n > ${name}${count > 1 ? ` x${count}` : ''}`);
         ns.printf(' ----------------------------------');
         ns.printf(
-            ` Rank: ${ns.formatNumber(blade.getRank())}/${ns.formatNumber(blade.getBlackOpRank(currentBlackOp))}` +
-            `, SP: ${ns.formatNumber(blade.getSkillPoints())}` +
-            `, Stamina: ${ns.formatNumber(blade.getStamina()[0], 1)}/${ns.formatNumber(blade.getStamina()[1], 1)}`
-        );
+            ` Rank: ${ns.formatNumber(blade.getRank())} / ${ns.formatNumber(blade.getBlackOpRank(currentBlackOp))}` +
+            `, SP: ${ns.formatNumber(blade.getSkillPoints())}`);
+        ns.printf(` Stamina: ${ns.formatNumber(blade.getStamina()[0], 1)} / ${ns.formatNumber(blade.getStamina()[1], 1)}`);
         ns.printf(` City: ${city}, Chaos: ${ns.formatNumber(cityChaos(city))}, Pop: ${ns.formatNumber(populationOf(city))}`);
     }
 
@@ -103,10 +115,10 @@ export async function main(ns) {
     async function checkCity() {
         let citiesCopy = cities.slice();
 
-        citiesCopy.filter(c => populationOf(c) > 8e8);
+        citiesCopy = citiesCopy.filter(c => populationOf(c) >= 1e9);
 
-        citiesCopy.sort((a, b) => getAverageChance(b) - getAverageChance(a));
-        blade.switchCity(citiesCopy[0]);
+        citiesCopy.sort((a, b) => getAverageChance(a) - getAverageChance(b));
+        blade.switchCity(citiesCopy[citiesCopy.length - 1]);
 
         await ns.sleep(50);
     }
@@ -130,7 +142,7 @@ export async function main(ns) {
         operations.forEach(op => opLevel += blade.getActionCurrentLevel('operation', op));
         const averageActionLevel = (contractLevel / contracts.length + opLevel / operations.length) / 2;
 
-        return Math.pow(getCompetence(city) / (100 * chance * Math.pow((1.03 + 1.44) / 2, averageActionLevel - 1)), 2) + 49;
+        return Math.pow(getCompetence(city) / (100 * chance * Math.pow((1.03 + 1.044) / 2, averageActionLevel - 1)), 2) + 49;
     }
 
     function getCompetence(city) {
@@ -165,7 +177,7 @@ export async function main(ns) {
         const chaos = cityChaos(city);
         let chaosBonus = chaos > 50 ? Math.pow(chaos - 49, 0.5) : 1;
 
-        return 100 * Math.pow((1.03 + 1.44) / 2, averageActionLevel - 1) * chaosBonus;
+        return 100 * Math.pow((1.03 + 1.044) / 2, averageActionLevel - 1) * chaosBonus;
     }
 
     /** If success chance accuracy of ```name``` is insufficient (```[0] != [1]```) starts ```Field Analysis``` */
@@ -229,17 +241,37 @@ export async function main(ns) {
         }
     }
 
+    function hasContractRanOut() {
+        let ranOut = false;
+        !ranOut && contracts.forEach(con => {
+            if (actionCount('contract', con) <= 0) {
+                ranOut = true;
+                return;
+            }
+        });
+        return ranOut;
+    }
+
+    function hasOpRanOut() {
+        let ranOut = false;
+        !ranOut && operations.forEach(op => {
+            if (actionCount('operation', op) <= 0) {
+                ranOut = true;
+                return;
+            }
+        });
+        return ranOut;
+    }
+
     /** Increase work count for contracts/operations. Regulate chaos afterwards.
      * @see {@link regulateChaos()}
     */
     async function increaseWorkCount() {
-        // - Incite Violence -> work count++, chaos++
-        // - Diplomacy -> chaos--, can ignore if chance is sufficient
-        while (actionCount('contract', 'Retirement') <= 0 || actionCount('operation', 'Assassination') <= 0) {
+        while (hasContractRanOut() || hasOpRanOut()) {
             await performAction('general', 'Incite Violence');
+            await regulateChaos();
             await ns.sleep(10);
         }
-        await regulateChaos();
     }
 
     /** Starts ```Diplomacy``` if ```chaos > getChaosThreshold```, nothing otherwise.
