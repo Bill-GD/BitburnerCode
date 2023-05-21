@@ -25,18 +25,6 @@ function predictState(samples) {
     return 0;
 }
 
-function format(money) {
-    const prefixes = ["", "k", "m", "b", "t", "q"];
-    for (let i = 0; i < prefixes.length; i++) {
-        if (Math.abs(money) < 1000) {
-            return `${Math.floor(money * 10) / 10}${prefixes[i]}`;
-        } else {
-            money /= 1000;
-        }
-    }
-    return `${Math.floor(money * 10) / 10}${prefixes[prefixes.length - 1]}`;
-}
-
 function posNegDiff(samples) {
     const pos = samples.reduce((acc, curr) => acc + (curr > 1. ? 1 : 0), 0);
     return Math.abs(samples.length - 2 * pos);
@@ -98,10 +86,10 @@ export async function main(ns) {
                 if (state < 0) {
                     const sellPrice = ns.stock.sellStock(sym, longShares);
                     if (sellPrice > 0) {
-                        ns.print(`SOLD (long) ${sym}. Profit: ${format(profit)}`);
+                        ns.print(`SOLD (long) ${sym}. Profit: $${ns.formatNumber(profit, 1)}`);
                     }
                 } else {
-                    ns.print(`${sym} (${ratio}): ${format(profit + cost)} / ${format(profit)} (${Math.round(profit / cost * 10000) / 100}%)`);
+                    ns.print(`${sym} (${ratio}): $${ns.formatNumber(profit + cost, 1)} / $${ns.formatNumber(profit, 1)} (${Math.round(profit / cost * 10000) / 100}%)`);
                 }
             } else if (shortShares > 0) {
                 const cost = shortShares * shortPrice;
@@ -109,10 +97,10 @@ export async function main(ns) {
                 if (state > 0) {
                     const sellPrice = ns.stock.sellShort(sym, shortShares);
                     if (sellPrice > 0) {
-                        ns.print(`SOLD (short) ${sym}. Profit: ${format(profit)}`);
+                        ns.print(`SOLD (short) ${sym}. Profit: $${ns.formatNumber(profit, 1)}`);
                     }
                 } else {
-                    ns.print(`${sym} (${ratio}): ${format(profit + cost)} / ${format(profit)} (${Math.round(profit / cost * 10000) / 100}%)`);
+                    ns.print(`${sym} (${ratio}): $${ns.formatNumber(profit + cost, 1)} / $${ns.formatNumber(profit, 1)} (${Math.round(profit / cost * 10000) / 100}%)`);
                 }
             } else {
                 const money = ns.getServerMoneyAvailable("home");

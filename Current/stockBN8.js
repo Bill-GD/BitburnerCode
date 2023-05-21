@@ -11,12 +11,11 @@ const commission = 100000;
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
-    ns.tail()
+    ns.tail();
     while (true) {
         tendStocks(ns);
         await ns.sleep(5 * 1000);
     }
-
 }
 
 function tendStocks(ns) {
@@ -33,7 +32,7 @@ function tendStocks(ns) {
         if (stock.longShares > 0) {
             if (stock.forecast > 0.5) {
                 longStocks.add(stock.sym);
-                ns.print(`INFO ${stock.summary} LONG ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat(100 * stock.profit / stock.cost, "0.00")}%`);
+                ns.print(`INFO ${stock.summary} LONG ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent(100 * stock.profit / stock.cost, 2)}`);
                 overallValue += (stock.cost + stock.profit);
             }
             else {
@@ -43,13 +42,13 @@ function tendStocks(ns) {
                 const saleProfit = saleTotal - saleCost - 2 * commission;
                 stock.shares = 0;
                 shortStocks.add(stock.sym);
-                ns.print(`WARN ${stock.summary} SOLD for ${ns.nFormat(saleProfit, "$0.0a")} profit`);
+                ns.print(`WARN ${stock.summary} SOLD for $${ns.formatNumber(saleProfit, 1)} profit`);
             }
         }
         if (stock.shortShares > 0) {
             if (stock.forecast < 0.5) {
                 shortStocks.add(stock.sym);
-                ns.print(`INFO ${stock.summary} SHORT ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat(100 * stock.profit / stock.cost, "0.00")}%`);
+                ns.print(`INFO ${stock.summary} SHORT ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent(100 * stock.profit / stock.cost, 2)}`);
                 overallValue += (stock.cost + stock.profit);
             }
             else {
@@ -59,7 +58,7 @@ function tendStocks(ns) {
                 const saleProfit = saleTotal - saleCost - 2 * commission;
                 stock.shares = 0;
                 longStocks.add(stock.sym);
-                ns.print(`WARN ${stock.summary} SHORT SOLD for ${ns.nFormat(saleProfit, "$0.0a")} profit`);
+                ns.print(`WARN ${stock.summary} SHORT SOLD for $${ns.formatNumber(saleProfit, 1)} profit`);
             }
         }
     }
@@ -73,7 +72,7 @@ function tendStocks(ns) {
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.askPrice));
                 if (ns.stock.buyStock(stock.sym, sharesToBuy) > 0) {
-                    ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.nFormat(sharesToBuy, "$0.0a")}`);
+                    ns.print(`WARN ${stock.summary} LONG BOUGHT $${ns.formatNumber(sharesToBuy, 1)}`);
                 }
             }
         }
@@ -83,12 +82,12 @@ function tendStocks(ns) {
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.bidPrice));
                 if (ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
-                    ns.print(`WARN ${stock.summary} SHORT BOUGHT ${ns.nFormat(sharesToBuy, "$0.0a")}`);
+                    ns.print(`WARN ${stock.summary} SHORT BOUGHT $${ns.formatNumber(sharesToBuy, 1)}`);
                 }
             }
         }
     }
-    ns.print("Stock value: " + ns.nFormat(overallValue, "$0.0a"));
+    ns.print("Stock value: $" + ns.formatNumber(overallValue, 1));
 
     // send stock market manipulation orders to hack manager
     var growStockPort = ns.getPortHandle(1); // port 1 is grow
@@ -178,7 +177,5 @@ function getSymServer(sym) {
         "OMN": "omnia",
         "FNS": "foodnstuff"
     }
-
     return symServer[sym];
-
 }
