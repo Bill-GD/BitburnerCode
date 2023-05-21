@@ -54,7 +54,19 @@ export async function main(ns) {
         'Take on contracts'
     ];
 
-    let preset = await ns.prompt('Use preset?', { 'type': 'select', 'choices': ['All Crime', 'All Infiltrate', 'All Diplomacy', 'None'] });
+    let preset = await ns.prompt(
+        'Use preset?',
+        {
+            'type': 'select',
+            'choices': [
+                'All Recover',
+                'All Crime',
+                'All Infiltrate',
+                'All Diplomacy',
+                'None'
+            ]
+        }
+    );
     let sleeves = [];
 
     switch (preset) {
@@ -66,6 +78,9 @@ export async function main(ns) {
             break;
         case 'All Diplomacy':
             sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Diplomacy']);
+            break;
+        case 'All Recover':
+            sleeves = Array(numSleeve()).fill().map(() => ['Recovery', null]);
             break;
     }
 
