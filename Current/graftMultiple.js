@@ -95,18 +95,21 @@ export async function main(ns) {
         const prereqs = getPrereq(augName);
         if (prereqs.length === 0) return true;
 
+        let checked = false;
+        let result = true;
         const augIndex = chosenAugNames.findIndex(aug => aug === augName);
         prereqs.forEach((prereq) => {
+            if (checked) return;
             // if not owned
             if (!getOwned().includes(prereq)) {
-                // if chosen
-                // removes if prereq is after current aug
+                // if chosen, removes if prereq is after current aug
                 if (chosenAugNames.includes(prereq))
-                    return chosenAugNames.findIndex(aug => aug === prereq) < augIndex;
+                    result = chosenAugNames.findIndex(aug => aug === prereq) < augIndex;
                 // false if not chosen
-                return false;
+                else result = false;
+                checked = true;
             }
         });
-        return true;
+        return result;
     }
 }

@@ -1,6 +1,6 @@
-/** Version 2.2
- * Added presets: Crime, Infiltrate, Diplomacy
- * Task assignment is now outside of the main loop
+/** Version 2.2.1
+ * Renamed
+ * Added preset: Recovery
 */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -116,18 +116,18 @@ export async function main(ns) {
                     `${notification}Chosen sleeve:\n` +
                     `${selectedSleeve}: ${sleeves[selectedSleeve][0]} - ${sleeves[selectedSleeve][1]}\n\n` +
                     `Choose action type for sleeve:`,
-                    { 'type': 'select', 'choices': ['Recovery', 'Crime', 'Blade', 'Choose ID'] });
+                    { 'type': 'select', 'choices': ['Recovery', 'Crime', 'Blade', 'Go Back'] });
                 if (chosenOption === '') {
                     chosenAction = '';
                     notification = '(!) No action type selected\n\n';
                     continue;
                 }
-                if (chosenOption === 'Choose ID') {
+                if (chosenOption === 'Go Back') {
                     notification = '';
                     continue selectID;
                 }
                 if (chosenOption === 'Recovery' && getSleeve(selectedSleeve).shock <= 0) {
-                    notification = `(!) Sleeve ${selectedSleeve} shock is 0`;
+                    notification = `(!) Sleeve ${selectedSleeve} shock is 0\n\n`;
                     continue;
                 }
                 sleeves[selectedSleeve][0] = chosenOption;

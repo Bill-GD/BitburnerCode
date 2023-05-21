@@ -42,11 +42,12 @@ export async function main(ns) {
         "w0r1d_d43m0n",
     ]
 
-    ns.tprintf(" (!) preparing to install backdoor on servers\n\n");
+    ns.tprintf(" (!) Installing backdoor on servers\n\n");
 
+    ns.singularity.connect('home');
     for (let server of servers)
         if (ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel("home") && ns.hasRootAccess(server) && !ns.getServer(server).backdoorInstalled) {
-            ns.exec('directConnect.js', 'home', 1, server);
+            ns.run('directConnect.js', 1, server);
             await ns.sleep(10);
             await ns.singularity.installBackdoor();
             ns.tprintf(` > ${server} - Done`);

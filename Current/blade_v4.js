@@ -1,16 +1,8 @@
-/** Version 4.6.2
- * * Changed checkCity
- *  - Population lower limit: 1b
- *  - Actually select most populated city now
- * * Fixed difficultyFac:
- *  - Was: 1.44
- *  - Now: 1.044
- *  - The average was increased by 0.2 because of this
+/** Version 4.7
+ * Contract and operation chance is now average chance of all tasks of that tier
  * 
- * * Changed work count check: increase if any contract/operation has ran out
- * ! Consider removing this feature:
- *  - Each 'Incite Violence' completed: 0-1 work, 50-100 chaos (too much)
- *  - Sleeves can 'Infiltrate': no chaos increase, potentially infinite work, separated script, 8 sleeves
+ * No longer increase work by Incite Violence
+ * Now notifies user and ask to use Sleeve if possible
 */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -59,17 +51,17 @@ export async function main(ns) {
         await checkAccuracy('contract', 'Tracking');
         if (successChance('contract', 'Tracking')[0] >= 0.7 &&
             successChance('operation', 'Investigation')[0] < 0.8) {
-                for (const con of contracts) {
+            for (const con of contracts) {
                 await checkCity();
                 await checkBlackOps();
                 await checkAccuracy('contract', con);
                 if (successChance('contract', con)[0] < 0.7) continue;
+                if (!checkWorkCount('contract', con)) continue;
                 await performAction('contract', con, Math.min(10, actionCount('contract', con)));
                 await upgradeSkills();
                 await ns.sleep(10);
             }
             await regulateChaos();
-            await increaseWorkCount();
         }
 
         // operations
@@ -80,12 +72,12 @@ export async function main(ns) {
                 await checkBlackOps();
                 await checkAccuracy('operation', op);
                 if (successChance('operation', op)[0] < 0.8) continue;
+                if (!checkWorkCount('operation', op)) continue;
                 await performAction('operation', op, Math.min(10, actionCount('operation', op)));
                 await upgradeSkills();
                 await ns.sleep(10);
             }
             await regulateChaos();
-            await increaseWorkCount();
         }
 
         await checkBlackOps();
@@ -98,8 +90,8 @@ export async function main(ns) {
         const city = blade.getCity();
         ns.clearLog();
         ns.print(
-            ` Tracking: ${ns.formatPercent(successChance('contract', 'Tracking')[0], 1)}` +
-            `, Investigation: ${ns.formatPercent(successChance('operation', 'Investigation')[0], 1)}\n` +
+            ` Contract: ${ns.formatPercent(averageContractChance(), 1)}` +
+            `, Operation: ${ns.formatPercent(averageOpChance(), 1)}\n` +
             (currentBlackOp !== '' ? ` ${currentBlackOp}: ${ns.formatPercent(successChance('black op', currentBlackOp)[0], 1)}` : '')
         );
         ns.printf(` Current action: ${type}\n > ${name}${count > 1 ? ` x${count}` : ''}`);
@@ -241,37 +233,13 @@ export async function main(ns) {
         }
     }
 
-    function hasContractRanOut() {
-        let ranOut = false;
-        !ranOut && contracts.forEach(con => {
-            if (actionCount('contract', con) <= 0) {
-                ranOut = true;
-                return;
-            }
-        });
-        return ranOut;
-    }
-
-    function hasOpRanOut() {
-        let ranOut = false;
-        !ranOut && operations.forEach(op => {
-            if (actionCount('operation', op) <= 0) {
-                ranOut = true;
-                return;
-            }
-        });
-        return ranOut;
-    }
-
-    /** Increase work count for contracts/operations. Regulate chaos afterwards.
-     * @see {@link regulateChaos()}
-    */
-    async function increaseWorkCount() {
-        while (hasContractRanOut() || hasOpRanOut()) {
-            await performAction('general', 'Incite Violence');
-            await regulateChaos();
-            await ns.sleep(10);
+    /** Notifies user if work count is ```0```. */
+    function checkWorkCount(type = '', name = '') {
+        if (actionCount(type, name) <= 0) {
+            ns.toast(`Remaining Work of ${name} is 0. Use Sleeve (Infiltrate) if possible.`, 'info');
+            return false;
         }
+        return true;
     }
 
     /** Starts ```Diplomacy``` if ```chaos > getChaosThreshold```, nothing otherwise.
@@ -320,5 +288,17 @@ export async function main(ns) {
             }
         });
         return currentBlackOp;
+    }
+
+    function averageContractChance() {
+        let chance = 0;
+        contracts.forEach(con => chance += successChance('contract', con)[0]);
+        return chance / contracts.length;
+    }
+
+    function averageOpChance() {
+        let chance = 0;
+        operations.forEach(op => chance += successChance('operation', op)[0]);
+        return chance / operations.length;
     }
 }
