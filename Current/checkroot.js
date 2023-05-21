@@ -46,20 +46,14 @@ export async function main(ns) {
     for (let server of servers)
         ns.hasRootAccess(server) ? hasRoot.push(server) : noRoot.push(server);
 
-    if (option.noRoot) {
-        if (noRoot.length == 0)
-            ns.tprintf(` (!) Has root access to all servers`);
-        else
-            for (let server of noRoot)
-                ns.tprintf(` - ${server}`);
-    }
-    else {
-        if (hasRoot.length == 0)
-            ns.tprintf(` (!) Has no root access to any server`);
-        else
-            for (let server of hasRoot)
-                ns.tprintf(` - ${server}`);
-    }
+    if (option.noRoot)
+        noRoot.length === 0
+            ? ns.tprintf(` (!) Has root access to all servers`)
+            : noRoot.forEach(server => { ns.tprintf(` - ${server}`); });
+    else
+        hasRoot.length === 0
+            ? ns.tprintf(` (!) Has no root access to any server`)
+            : hasRoot.forEach(server => { ns.tprintf(` - ${server}`); });
 
     ns.tprintf(` -> Total: ${option.noRoot ? noRoot.length : hasRoot.length}`);
 }

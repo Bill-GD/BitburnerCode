@@ -7,6 +7,6 @@ export async function main(ns) {
             const cost = ns.singularity.getDarkwebProgramCost(program);
             if (cost > 0 && cost < ns.getServerMoneyAvailable('home'))
                 ns.singularity.purchaseProgram(program) ? ns.tprintf(` > ${program} - Purchased`) : 0;
-        })
+        });
     }
 }
