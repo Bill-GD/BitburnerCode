@@ -1,13 +1,18 @@
-/** Version 2.2
- * Revert prereqs sorting
- * Now removes prereq if:
- * - prereq is not owned and not chosen
- * - prereq is not owned, chosen but is placed after current aug
+/** Version 2.3
+ * Delays grafting if previous aug is not finished
+ * - Shows time remaining
+ * - Continue grafting new augs when finished
+ * 
+ * Now saves the current grafting list & progress to file
+ * - If file is empty (no augs queued), asks for new queue
+ * - If file contains augs, use them instead
  */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
     ns.clearLog();
+
+    const fileName = 'augs_to_graft.txt';
 
     const graft = ns.grafting;
     const augGraftCost = aug => graft.getAugmentationGraftPrice(aug);
@@ -18,17 +23,21 @@ export async function main(ns) {
     const graftableAugs = graft.getGraftableAugmentations();
     graftableAugs.sort((a, b) => augGraftCost(a) - augGraftCost(b));
 
-    const stringID = await ns.prompt(
-        'Write list of IDs to graft (separated by spaces)\n' +
-        'IDs from the list of augmentations',
-        { 'type': 'text' }
-    );
-    if (stringID.length === 0) ns.exit();
-    const chosenAugIDs = stringID.split(' ')
-        .map(id => parseInt(id))
-        .sort((a, b) => a - b);
-    let chosenAugNames = chosenAugIDs.map((id) => graftableAugs[id]);
-    chosenAugNames = chosenAugNames.filter(aug => checkPrereq(aug));
+    let chosenAugNames = ns.read(fileName).split('\n');
+
+    if (chosenAugNames[0] === '') {
+        const stringID = await ns.prompt(
+            'Write list of IDs to graft (separated by spaces)\n' +
+            'IDs from the list of augmentations',
+            { 'type': 'text' }
+        );
+        if (stringID.length === 0) ns.exit();
+        const chosenAugIDs = stringID.split(' ')
+            .map(id => parseInt(id))
+            .sort((a, b) => a - b);
+        chosenAugNames = chosenAugIDs.map((id) => graftableAugs[id]);
+        chosenAugNames = chosenAugNames.filter(aug => checkPrereq(aug));
+    }
 
     switch (chosenAugNames.length) {
         case 0:
@@ -44,8 +53,10 @@ export async function main(ns) {
             let totalTime = 0;
             let menuText = '';
 
+            ns.write(fileName, chosenAugNames.join('\n'), 'w');
+
             chosenAugNames.forEach(aug => totalCost += augGraftCost(aug));
-            menuText += ` Augs to graft (total=${chosenAugNames.length}, cost=$${ns.formatNumber(totalCost, 1)}):\n`;
+            menuText += ` Augs to graft (Total: ${chosenAugNames.length}, Cost: $${ns.formatNumber(totalCost, 1)}):\n`;
 
             // prints out all augs & calculates time
             Object.entries(chosenAugNames).forEach(([i, aug]) => {
@@ -56,6 +67,10 @@ export async function main(ns) {
                 lineCount++;
             });
             lineCount++;
+
+            const currentWork = ns.singularity.getCurrentWork();
+            if (currentWork !== null && currentWork.type === 'GRAFTING')
+                totalTime += (graftTime(currentWork.augmentation) - (currentWork.cyclesWorked * 200));
 
             // process time info
             const timeStart = new Date();
@@ -72,11 +87,27 @@ export async function main(ns) {
 
             if (!await ns.prompt('Start Grafting?\n' + timeNotification)) break;
 
+            // waits for current aug to finish
+            while (ns.singularity.getCurrentWork() !== null && ns.singularity.getCurrentWork().type === 'GRAFTING') {
+                ns.clearLog();
+                ns.printf(menuText);
+                ns.printf(`\n Waiting for ${currentWork.augmentation} to finish`);
+                ns.printf(` Time remaining: ${ns.tFormat(graftTime(ns.singularity.getCurrentWork().augmentation) - (ns.singularity.getCurrentWork().cyclesWorked * 200))}`);
+                ns.printf(`\n${timeNotification}`);
+                await ns.sleep(1e3);
+            }
+            await ns.sleep(3e3);
+
             ns.resizeTail(600, 25 * (lineCount + 4) + 25);
 
             // starts grafting
+            let augProgress = chosenAugNames.slice();
             for (const aug of chosenAugNames) {
                 ns.run('graft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
+
+                augProgress.shift();
+                ns.write(fileName, augProgress.join('\n'), 'w');
+
                 ns.clearLog();
                 let timeToGraft = graftTime(aug);
                 ns.printf(`${menuText}`);
