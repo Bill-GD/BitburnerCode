@@ -42,7 +42,7 @@ export async function main(ns) {
         "w0r1d_d43m0n",
     ]
 
-    ns.tprintf(" (!) Installing backdoor on servers\n\n");
+    ns.tprintf(" (!) Installing backdoor on servers...");
 
     ns.singularity.connect('home');
     for (let server of servers)
@@ -50,8 +50,8 @@ export async function main(ns) {
             ns.run('directConnect.js', 1, server);
             await ns.sleep(10);
             await ns.singularity.installBackdoor();
-            ns.tprintf(` > ${server} - Done`);
+            ns.toast(`Installed backdoor on ${server}`, 'success', 5e3);
             ns.singularity.connect('home');
         }
-    ns.tprintf("\n");
+    ns.tprintf(' (!) Finished installing backdoor on servers\n');
 }

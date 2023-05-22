@@ -1,5 +1,5 @@
-/** Version 2.1.3
- * Renamed to match old version
+/** Version 2.1.4
+ * Fixed extra semi-colon when checking current city
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -144,12 +144,12 @@ export async function main(ns) {
                 ns.exit();
             }
 
-            if (player().city !== "New Tokyo");
-            if (player().money - augGraftCost(chosenAug) > 2e5) ns.singularity.travelToCity("New Tokyo");
-            else {
-                ns.printf(`ERROR: You don't have enough money to travel to New Tokyo`);
-                ns.exit();
-            }
+            if (player().city !== "New Tokyo")
+                if (player().money - augGraftCost(chosenAug) > 2e5) ns.singularity.travelToCity("New Tokyo");
+                else {
+                    ns.printf(`ERROR: You don't have enough money to travel to New Tokyo`);
+                    ns.exit();
+                }
             if (graft.graftAugmentation(chosenAug, focus) === true) {
                 if (!flagOptions.multiple) {
                     ns.resizeTail(600, 130);
@@ -162,6 +162,7 @@ export async function main(ns) {
                         ns.printf(` Currently grafting: ${chosenAug}`);
                 }
                 else ns.closeTail();
+                ns.toast(`Started grafting ${chosenAug}`, 'info', 10e3);
             }
             else
                 ns.printf(`ERROR: Hasn't grafted prerequisites of ${chosenAug}`);

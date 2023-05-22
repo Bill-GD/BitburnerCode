@@ -1,8 +1,5 @@
-/** Version 4.7
- * Contract and operation chance is now average chance of all tasks of that tier
- * 
- * No longer increase work by Incite Violence
- * Now notifies user and ask to use Sleeve if possible
+/** Version 4.7.1
+ * Small bug fix with bonus time
 */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -90,8 +87,8 @@ export async function main(ns) {
         const city = blade.getCity();
         ns.clearLog();
         ns.print(
-            ` Contract: ${ns.formatPercent(averageContractChance(), 1)}` +
-            `, Operation: ${ns.formatPercent(averageOpChance(), 1)}\n` +
+            ` Avg. Contract: ${ns.formatPercent(averageContractChance(), 1)}` +
+            `, Avg. Operation: ${ns.formatPercent(averageOpChance(), 1)}\n` +
             (currentBlackOp !== '' ? ` ${currentBlackOp}: ${ns.formatPercent(successChance('black op', currentBlackOp)[0], 1)}` : '')
         );
         ns.printf(` Current action: ${type}\n > ${name}${count > 1 ? ` x${count}` : ''}`);
@@ -188,7 +185,7 @@ export async function main(ns) {
             for (let i = 0; i < count; i++) {
                 if (blade.startAction(type, action)) {
                     logAction(currentAction().type, currentAction().name, i + 1);
-                    await ns.sleep(Math.max(1e3, actionTime(type, action) / bonusTime()));
+                    await ns.sleep(Math.max(1e3, Math.ceil(actionTime(type, action) / bonusTime() / 1e3) * 1e3));
                 }
                 await ns.sleep(10);
             }
