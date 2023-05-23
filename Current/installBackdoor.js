@@ -42,16 +42,23 @@ export async function main(ns) {
         "w0r1d_d43m0n",
     ]
 
+    const factions = ['CSEC', 'avmnite-02h', 'I.I.I.I', 'run4theh111z'];
+
     ns.tprintf(" (!) Installing backdoor on servers...");
 
     ns.singularity.connect('home');
+
+    let count = 0;
     for (let server of servers)
         if (ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel("home") && ns.hasRootAccess(server) && !ns.getServer(server).backdoorInstalled) {
             ns.run('directConnect.js', 1, server);
             await ns.sleep(10);
             await ns.singularity.installBackdoor();
+            if (factions.includes(server))
+                ns.tprintf(` > ${server}: Backdoor installed`);
             ns.toast(`Installed backdoor on ${server}`, 'success', 5e3);
+            count++;
             ns.singularity.connect('home');
         }
-    ns.tprintf(' (!) Finished installing backdoor on servers\n');
+    ns.tprintf(` (!) Finished installing backdoor on ${count} server(s)\n`);
 }

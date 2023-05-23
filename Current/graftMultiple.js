@@ -1,11 +1,6 @@
-/** Version 2.3
- * Delays grafting if previous aug is not finished
- * - Shows time remaining
- * - Continue grafting new augs when finished
- * 
- * Now saves the current grafting list & progress to file
- * - If file is empty (no augs queued), asks for new queue
- * - If file contains augs, use them instead
+/** Version 2.3.1
+ * Added check (for currently grafting aug) and delay in the main grafting loop
+ * If queue has augs, asks if user wants to create a new queue instead
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -23,9 +18,14 @@ export async function main(ns) {
     const graftableAugs = graft.getGraftableAugmentations();
     graftableAugs.sort((a, b) => augGraftCost(a) - augGraftCost(b));
 
+
     let chosenAugNames = ns.read(fileName).split('\n');
 
-    if (chosenAugNames[0] === '') {
+    let reset = false;
+    if (chosenAugNames[0] !== '')
+        reset = await ns.prompt(`Current queue has ${chosenAugNames.length} augs. Do you want create a new queue instead?`);
+    
+    if (chosenAugNames[0] === '' || reset) {
         const stringID = await ns.prompt(
             'Write list of IDs to graft (separated by spaces)\n' +
             'IDs from the list of augmentations',
@@ -84,6 +84,7 @@ export async function main(ns) {
             lineCount += 4;
 
             ns.printf(menuText);
+            ns.resizeTail(600, 25 * (lineCount + 4) + 25);
 
             if (!await ns.prompt('Start Grafting?\n' + timeNotification)) break;
 
@@ -98,11 +99,12 @@ export async function main(ns) {
             }
             await ns.sleep(3e3);
 
-            ns.resizeTail(600, 25 * (lineCount + 4) + 25);
 
             // starts grafting
             let augProgress = chosenAugNames.slice();
             for (const aug of chosenAugNames) {
+                while (ns.singularity.getCurrentWork() !== null && ns.singularity.getCurrentWork().type === 'GRAFTING')
+                    await ns.sleep(1e3);
                 ns.run('graft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
 
                 augProgress.shift();

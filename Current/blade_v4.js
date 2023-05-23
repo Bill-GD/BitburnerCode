@@ -1,5 +1,7 @@
-/** Version 4.7.1
- * Small bug fix with bonus time
+/** Version 4.7.2
+ * Black Ops now only need to be at 95% chance or higher
+ * Fixed action count with bonus time (hopefully)
+ * Merged 2 average chance functions
 */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -87,8 +89,8 @@ export async function main(ns) {
         const city = blade.getCity();
         ns.clearLog();
         ns.print(
-            ` Avg. Contract: ${ns.formatPercent(averageContractChance(), 1)}` +
-            `, Avg. Operation: ${ns.formatPercent(averageOpChance(), 1)}\n` +
+            ` Avg. Contract: ${ns.formatPercent(averageTaskChance('contract', contracts), 1)}` +
+            `, Avg. Operation: ${ns.formatPercent(averageTaskChance('operation', operations), 1)}\n` +
             (currentBlackOp !== '' ? ` ${currentBlackOp}: ${ns.formatPercent(successChance('black op', currentBlackOp)[0], 1)}` : '')
         );
         ns.printf(` Current action: ${type}\n > ${name}${count > 1 ? ` x${count}` : ''}`);
@@ -185,9 +187,9 @@ export async function main(ns) {
             for (let i = 0; i < count; i++) {
                 if (blade.startAction(type, action)) {
                     logAction(currentAction().type, currentAction().name, i + 1);
-                    await ns.sleep(Math.max(1e3, Math.ceil(actionTime(type, action) / bonusTime() / 1e3) * 1e3));
+                    await ns.sleep(Math.max(1, Math.ceil((actionTime(type, action) / 1e3) / (blade.getBonusTime() > 3e3 ? 5 : 1))) * 1e3);
                 }
-                await ns.sleep(10);
+                else i--;
             }
         }
         else {
@@ -202,8 +204,6 @@ export async function main(ns) {
             while (blade.getStamina()[0] < blade.getStamina()[1])
                 await performAction('general', 'Hyperbolic Regeneration Chamber', 1, false);
     }
-
-    function bonusTime() { return blade.getBonusTime() > 1e3 ? 5 : 1; }
 
     /** Continuously upgrade skill while SP is sufficient. */
     async function upgradeSkills() {
@@ -266,11 +266,17 @@ export async function main(ns) {
             }
             if (blade.getRank() < blade.getBlackOpRank(currentBlackOp)) return;
             await checkAccuracy('black op', currentBlackOp);
-            if (successChance('black op', currentBlackOp)[0] < 1) return;
+            if (successChance('black op', currentBlackOp)[0] < 0.95) return;
 
             await performAction('black op', currentBlackOp);
-            await upgradeSkills();
-            currentBlackOp = getCurrentBlackOp();
+
+            // if succeed, notify the user and update the black op
+            const nextBlackOp = getCurrentBlackOp();
+            if (nextBlackOp !== currentBlackOp) {
+                ns.toast(`Successfully completed ${currentBlackOp}`, 'success', 5e3);
+                await upgradeSkills();
+                currentBlackOp = nextBlackOp;
+            }
             await ns.sleep(10);
         }
     }
@@ -287,15 +293,9 @@ export async function main(ns) {
         return currentBlackOp;
     }
 
-    function averageContractChance() {
+    function averageTaskChance(type = '', tasks = []) {
         let chance = 0;
-        contracts.forEach(con => chance += successChance('contract', con)[0]);
-        return chance / contracts.length;
-    }
-
-    function averageOpChance() {
-        let chance = 0;
-        operations.forEach(op => chance += successChance('operation', op)[0]);
-        return chance / operations.length;
+        tasks.forEach(t => chance += successChance(type, t)[0]);
+        return chance / tasks.length;
     }
 }
