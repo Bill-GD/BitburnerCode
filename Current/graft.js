@@ -1,5 +1,5 @@
-/** Version 2.1.4
- * Fixed extra semi-colon when checking current city
+/** Version 2.1.5
+ * Now has dynamic log width
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -92,10 +92,13 @@ export async function main(ns) {
             if (id === -1) ns.exit();
 
             let lineCount = 4;
+            let maxWidth = ` Name: ${chosenAug}`.length;
 
             ns.printf(` ID: ${id}`);
             ns.printf(` Name: ${chosenAug}`);
-            ns.printf(` Cost: $${ns.formatNumber(augGraftCost(chosenAug), 1)} - ${checkMoney(augGraftCost(chosenAug)).toString().toUpperCase()}\n\n`);
+            const costLine = ` Cost: $${ns.formatNumber(augGraftCost(chosenAug), 1)} - ${checkMoney(augGraftCost(chosenAug)).toString().toUpperCase()}`;
+            maxWidth = Math.max(maxWidth, costLine.length);
+            ns.printf(`${costLine}\n\n`);
 
             let prereq = ns.singularity.getAugmentationPrereq(chosenAug);
             if (prereq.length !== 0) {
@@ -113,16 +116,20 @@ export async function main(ns) {
             else {
                 ns.printf(' Stat:');
                 stats.forEach(([type, mult]) => {
-                    ns.print(`  > ${type}: +${ns.formatPercent(mult - 1, 1)}`);
+                    const multLine = `  > ${type}: +${ns.formatPercent(mult - 1, 1)}`;
+                    ns.print(multLine);
+                    maxWidth = Math.max(maxWidth, multLine.length);
                     lineCount++;
                 });
             }
 
             lineCount += 4;
 
-            ns.resizeTail(600, 25 * lineCount + 30);
-
-            ns.printf(`\n Time: ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`);
+            const timeLine = ` Time: ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`;
+            ns.printf(`\n${timeLine}`);
+            maxWidth = Math.max(maxWidth, timeLine.length);
+            
+            ns.resizeTail(Math.max(250, maxWidth * 10), 25 * lineCount + 30);
             ns.exit();
         }
         case 'graft': {

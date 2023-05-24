@@ -1,7 +1,6 @@
-/** Version 2.2.1
- * Renamed
- * Added preset: Recovery
-*/
+/** Version 2.2.2
+ * Now has dynamic log width
+ */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
@@ -178,8 +177,8 @@ export async function main(ns) {
     }
 
     function logTask() {
+        let maxWidth = 0;
         ns.clearLog();
-        ns.resizeTail(450, 280);
         for (let id = 0; id < numSleeve(); id++) {
             let task = sl.getTask(id);
             switch (task.type.toLowerCase()) {
@@ -196,8 +195,11 @@ export async function main(ns) {
                     task = task.type[0] + task.type.substring(1).toLowerCase();
                     break;
             }
-            ns.print(` #${id} (aug=${sl.getSleeveAugmentations(id).length}): ${task}`);
+            const taskStr = ` #${id} (aug=${sl.getSleeveAugmentations(id).length}): ${task}`;
+            maxWidth = Math.max(maxWidth, taskStr.length);
+            ns.print(taskStr);
         }
+        ns.resizeTail(Math.max(250, maxWidth * 10), 280);
     }
 
     /** @return
