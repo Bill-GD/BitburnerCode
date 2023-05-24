@@ -24,69 +24,21 @@ export async function main(ns) {
             break;
         }
     }
-
-    // get the '...' button that shows money report popup
-    const buttons = doc.getElementsByClassName('MuiIconButton-root');
-    buttons.item(2).click();
-
-    // get the table of the bitnode money report
-    let bitnodeReport = null;
-    doc.querySelectorAll('h6').forEach(element => {
-        if (element.innerHTML.includes('BitNode'))
-            bitnodeReport = element // title of the bitnode segment
-                .parentElement // parent of the title -> inner div of popup
-                .children.item(7) // outer table
-                .children.item(0); // inner table
-    });
-
-    // need to get list of possible suffixes
-    const suffixes = ['k', 'm', 'b', 't', 'q', 'Q', 's', 'S', 'o', 'n'];
-    let loss = 0, gain = 0;
-    let lossStr = '', gainStr = '';
-    let totalMoney = 0, totalMoneyStr = '';
-
     let report = `BitNode: ${bitnode}.${level}\n\n`;
 
-    // get all items in the table
-    for (const row of bitnodeReport.children) {
-        const title = row.children.item(0)
-            .children.item(0).innerHTML;
-        if (title.includes('Total')) continue;
+    let loss = 0, gain = 0;
+    let totalMoney = 0;
 
-        let money = row.children.item(1)
-            .children.item(0)
-            .children.item(0).innerHTML.substring(1);
-
-        if (isNaN(parseInt(money.charAt(money.length - 1)))) {
-            const moneySuffix = money.substring(money.length - 1);
-            money.substring(0, money.length - 1);
-            const power = suffixes.findIndex(s => s === moneySuffix);
-            money = Math.round(parseFloat(money) * Math.pow(1e3, power + 1));
-        }
-        else if (!money.includes('e')) money = parseFloat(money);
-
-        if (isNaN(parseFloat(money)) && money.includes('e')) {
-            money.includes('-') ? lossStr += money.substring(1) + '+' : gainStr += money + '+';
-            totalMoneyStr += money + '+';
-        }
-        else {
-            money > 0 ? gain += money : loss += Math.abs(money);
-            totalMoney += money;
-        }
-
-        report += `${title} $${ns.formatNumber(money)}\n`;
-    }
-
-    gainStr.length > 0 ? gainStr += '\n' : 0;
-    lossStr.length > 0 ? lossStr += '\n' : 0;
-    totalMoneyStr.length > 0 ? totalMoneyStr += '\n' : 0;
+    Object.entries(ns.getMoneySources().sinceStart).forEach(([k, v]) => {
+        if (k === 'total') return;
+        totalMoney += v;
+        if (v !== 0) report += `${k.charAt(0).toUpperCase() + k.substring(1)}: $${ns.formatNumber(v)}\n`;
+        v > 0 ? gain += v : loss += Math.abs(v);
+    });
 
     report += `\nLoss: ${loss} (-${ns.formatNumber(loss)})\n` +
-        `${lossStr}` +
         `Gain: ${gain} (+${ns.formatNumber(gain)})\n` +
-        `${gainStr}` +
-        `Total: ${totalMoney} (${ns.formatNumber(totalMoney)})\n` +
-        `${totalMoneyStr}\n` +
+        `Total: ${totalMoney} (${ns.formatNumber(totalMoney)})\n\n` +
         `Time: ${bitnodeTime}`;
 
     ns.write('BitNode_Money_Report.txt', report, 'w');
