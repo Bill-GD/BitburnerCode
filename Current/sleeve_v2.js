@@ -1,5 +1,7 @@
-/** Version 2.2.2
- * Now has dynamic log width
+/** Version 2.2.3
+ * Crime preset is now split into 2: Karma and Combat
+ * Added Idle preset
+ * Time report now includes date
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -17,13 +19,13 @@ export async function main(ns) {
     const getAugs = id => sl.getSleevePurchasableAugs(id);
     const installAug = (id, aug) => sl.purchaseSleeveAug(id, aug);
 
+    const setIdle = id => sl.setToIdle(id);
     const setRecover = id => sl.setToShockRecovery(id);
     const setCrimeTask = (id, crime) => sl.setToCommitCrime(id, crime);
     const crimeChance = (id, crime) => ns.formulas.work.crimeSuccessChance(getSleeve(id), crime);
     const crimeStats = crime => ns.singularity.getCrimeStats(crime);
     const setBladeWork = (id, task) => sl.setToBladeburnerAction(id, task);
 
-    // const
     // sort the ratio between time and exp gain of crimes with time <= 60s
     // best 1st
     const crimes = [
@@ -54,14 +56,17 @@ export async function main(ns) {
     ];
 
     let preset = await ns.prompt(
-        'Use preset?',
+        'Use preset?\nThese apply to all sleeves.\n\n' +
+        'Ignore to skip',
         {
             'type': 'select',
             'choices': [
-                'All Recover',
-                'All Crime',
-                'All Infiltrate',
-                'All Diplomacy',
+                'Idle',
+                'Recover',
+                'Combat',
+                'Karma',
+                'Infiltrate',
+                'Diplomacy',
                 'None'
             ]
         }
@@ -69,16 +74,22 @@ export async function main(ns) {
     let sleeves = [];
 
     switch (preset) {
-        case 'All Crime':
-            sleeves = Array(numSleeve()).fill().map(() => ['Crime', null]);
+        case 'Idle':
+            sleeves = Array(numSleeve()).fill().map(() => ['Idle', null]);
             break;
-        case 'All Infiltrate':
+        case 'Combat':
+            sleeves = Array(numSleeve()).fill().map(() => ['Crime', 'combat']);
+            break;
+        case 'Karma':
+            sleeves = Array(numSleeve()).fill().map(() => ['Crime', 'karma']);
+            break;
+        case 'Infiltrate':
             sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Infiltrate synthoids']);
             break;
-        case 'All Diplomacy':
+        case 'Diplomacy':
             sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Diplomacy']);
             break;
-        case 'All Recover':
+        case 'Recover':
             sleeves = Array(numSleeve()).fill().map(() => ['Recovery', null]);
             break;
     }
@@ -95,17 +106,13 @@ export async function main(ns) {
                 `${notification}` +
                 `Choose sleeve:\n` +
                 `Confirm -> Confirm task assignments\n` +
-                `Exit -> Exit program\n\n` +
+                `Exit/Ignore -> Exit program\n\n` +
                 `'null' -> no change will be made\n` +
                 `${getSleevesString()}`,
                 { 'type': 'select', 'choices': [...sleeveIDs, 'Confirm', 'Exit'] }
             );
-            if (selectedSleeve === 'Exit') ns.exit();
+            if (selectedSleeve === 'Exit' || selectedSleeve === '') ns.exit();
             if (selectedSleeve === 'Confirm') break;
-            if (selectedSleeve === '') {
-                notification = '(!) No sleeve selected\n\n';
-                continue;
-            }
 
             notification = '';
             let chosenOption = '';
@@ -115,7 +122,7 @@ export async function main(ns) {
                     `${notification}Chosen sleeve:\n` +
                     `${selectedSleeve}: ${sleeves[selectedSleeve][0]} - ${sleeves[selectedSleeve][1]}\n\n` +
                     `Choose action type for sleeve:`,
-                    { 'type': 'select', 'choices': ['Recovery', 'Crime', 'Blade', 'Go Back'] });
+                    { 'type': 'select', 'choices': ['Idle', 'Recovery', 'Crime', 'Blade', 'Go Back'] });
                 if (chosenOption === '') {
                     chosenAction = '';
                     notification = '(!) No action type selected\n\n';
@@ -130,7 +137,7 @@ export async function main(ns) {
                     continue;
                 }
                 sleeves[selectedSleeve][0] = chosenOption;
-                if (chosenOption === 'Recovery' || chosenOption === 'Crime') break;
+                if (chosenOption === 'Recovery' || chosenOption === 'Crime' || chosenOption === 'Idle') break;
                 if (chosenOption === 'Blade') {
                     chosenAction = await ns.prompt(
                         'Choose Bladeburner action',
@@ -145,14 +152,27 @@ export async function main(ns) {
     sleeves.forEach(([type, action], id) => {
         if (!type) return;
 
-        if (type === 'Recovery')
-            setRecover(id);
-        else if (type === 'Crime') {
-            const crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
-            setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
+        switch (type) {
+            case 'Recovery':
+                setRecover(id);
+                break;
+            case 'Idle':
+                setIdle(id);
+                break;
+            case 'Crime':
+                if (action === 'combat') {
+                    const crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
+                    setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
+                }
+                if (action === 'karma') {
+                    crimes.sort((a, b) => crimeStats(b).karma - crimeStats(a).karma);
+                    setCrimeTask(id, crimes[0]);
+                }
+                break;
+            case 'Blade':
+                if (action) setBladeWork(id, action);
+                break;
         }
-        else if (type === 'Blade' && action)
-            setBladeWork(id, action);
     });
 
     while (true) {
@@ -169,9 +189,9 @@ export async function main(ns) {
 
         const time = new Date();
         ns.printf(
-            '\n Time: ' +
-            `${time.getHours() < 10 ? '0' : ''}${time.getHours()}:` +
-            `${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}`
+            `\n At: ` +
+            `${time.getDate()}/${time.getMonth() + 1}` +
+            ` ${time.getHours() < 10 ? '0' : ''}${time.getHours()}:${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}`
         );
         await ns.sleep(600e3);
     }
@@ -181,20 +201,22 @@ export async function main(ns) {
         ns.clearLog();
         for (let id = 0; id < numSleeve(); id++) {
             let task = sl.getTask(id);
-            switch (task.type.toLowerCase()) {
-                case 'bladeburner':
-                    task = task.actionName;
-                    break;
-                case 'recovery':
-                    task = 'Recovery (' + ns.formatNumber(getSleeve(id).shock, 2) + ')';
-                    break;
-                case 'crime':
-                    task = task.crimeType + ' (' + ns.formatPercent(crimeChance(id, task.crimeType), 1) + ')';
-                    break;
-                default:
-                    task = task.type[0] + task.type.substring(1).toLowerCase();
-                    break;
-            }
+            if (!task) task = `Idle (${ns.formatNumber(getSleeve(id).storedCycles)})`;
+            else
+                switch (task.type.toLowerCase()) {
+                    case 'bladeburner':
+                        task = task.actionName;
+                        break;
+                    case 'recovery':
+                        task = 'Recovery (' + ns.formatNumber(getSleeve(id).shock, 2) + ')';
+                        break;
+                    case 'crime':
+                        task = task.crimeType + ' (' + ns.formatPercent(crimeChance(id, task.crimeType), 1) + ')';
+                        break;
+                    default:
+                        task = task.type[0] + task.type.substring(1).toLowerCase();
+                        break;
+                }
             const taskStr = ` #${id} (aug=${sl.getSleeveAugmentations(id).length}): ${task}`;
             maxWidth = Math.max(maxWidth, taskStr.length);
             ns.print(taskStr);
@@ -203,6 +225,7 @@ export async function main(ns) {
     }
 
     /** @return
+     * ```number```
      * * ```positive``` if ```crime1``` is better than ```crime2```
      * * ```negative``` if ```crime1``` is worse than ```crime2```
      * * ```0``` if they are equal

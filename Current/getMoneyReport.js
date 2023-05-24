@@ -1,11 +1,12 @@
 /** @param {NS} ns */
 export async function main(ns) {
+    const doc = eval('document');
     // click the 'Stats' sidebar tab
     // parent of the icon is clickable
-    document.querySelector('svg[aria-label="Stats"]').parentElement.click();
+    doc.querySelector('svg[aria-label="Stats"]').parentElement.click();
 
     // get BitNode time
-    const labels = document.getElementsByClassName('MuiTypography-root');
+    const labels = doc.getElementsByClassName('MuiTypography-root');
     let bitnodeTime = '';
     for (const i in labels) {
         if (labels.item(i).textContent === 'Total')
@@ -25,12 +26,12 @@ export async function main(ns) {
     }
 
     // get the '...' button that shows money report popup
-    const buttons = document.getElementsByClassName('MuiIconButton-root');
+    const buttons = doc.getElementsByClassName('MuiIconButton-root');
     buttons.item(2).click();
 
     // get the table of the bitnode money report
     let bitnodeReport = null;
-    document.querySelectorAll('h6').forEach(element => {
+    doc.querySelectorAll('h6').forEach(element => {
         if (element.innerHTML.includes('BitNode'))
             bitnodeReport = element // title of the bitnode segment
                 .parentElement // parent of the title -> inner div of popup
@@ -91,10 +92,10 @@ export async function main(ns) {
     ns.write('BitNode_Money_Report.txt', report, 'w');
 
     // return to terminal
-    document.querySelector('svg[aria-label="Terminal"]').parentElement.click();
+    doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
 
     // open report
-    const terminalInput = document.getElementById('terminal-input');
+    const terminalInput = doc.getElementById('terminal-input');
     terminalInput.value = 'cat BitNode_Money_Report.txt';
     const handler = Object.keys(terminalInput)[1];
     terminalInput[handler].onChange({ target: terminalInput });

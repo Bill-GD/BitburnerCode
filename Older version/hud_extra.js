@@ -1,19 +1,21 @@
 //	v2: revamped + added more
 /** @param {NS} ns */
 export async function main(ns) {
-	ns.disableLog("ALL")
-	const hook0 = document.getElementById('overview-extra-hook-0')
-	const hook1 = document.getElementById('overview-extra-hook-1')
-	const hook2 = document.getElementById('overview-extra-hook-2')
-	const hookHP = document.getElementById('overview-hp-hook')
-	const hookC = document.getElementById('overview-money-hook')
-	const hookH = document.getElementById('overview-hack-hook')
-	const hookStr = document.getElementById('overview-str-hook')
-	const hookDef = document.getElementById('overview-def-hook')
-	const hookDex = document.getElementById('overview-dex-hook')
-	const hookAgi = document.getElementById('overview-agi-hook')
-	const hookCha = document.getElementById('overview-cha-hook')
-	const hookInt = document.getElementById('overview-int-hook');
+	ns.disableLog("ALL");
+
+	const doc = eval('document');
+	const hook0 = doc.getElementById('overview-extra-hook-0')
+	const hook1 = doc.getElementById('overview-extra-hook-1')
+	const hook2 = doc.getElementById('overview-extra-hook-2')
+	const hookHP = doc.getElementById('overview-hp-hook')
+	const hookC = doc.getElementById('overview-money-hook')
+	const hookH = doc.getElementById('overview-hack-hook')
+	const hookStr = doc.getElementById('overview-str-hook')
+	const hookDef = doc.getElementById('overview-def-hook')
+	const hookDex = doc.getElementById('overview-dex-hook')
+	const hookAgi = doc.getElementById('overview-agi-hook')
+	const hookCha = doc.getElementById('overview-cha-hook')
+	const hookInt = doc.getElementById('overview-int-hook');
 
 	ns.atExit(() => {
 		hook0.innerHTML = " ";
@@ -34,35 +36,35 @@ export async function main(ns) {
 	let buttonTextColor = theme.warning
 	let buttonBG = theme.backgroundsecondary
 
-	let buttonExit = document.createElement("button")
+	let buttonExit = doc.createElement("button")
 	let end = false
 	buttonExit.innerHTML = "Delete HUD"
 	buttonExit.style.color = buttonTextColor
 	buttonExit.style.backgroundColor = buttonBG
 	buttonExit.onclick = function () { end = true }
 
-	let buttonRestart = document.createElement("button");
+	let buttonRestart = doc.createElement("button");
 	let restart = false
 	buttonRestart.innerHTML = "Restart HUD"
 	buttonRestart.style.color = buttonTextColor
 	buttonRestart.style.backgroundColor = buttonBG
 	buttonRestart.onclick = function () { restart = true }
 
-	let buttonUpRam = document.createElement("button")
+	let buttonUpRam = doc.createElement("button")
 	let homeUp = false
 	buttonUpRam.innerHTML = "Upgrade"
 	buttonUpRam.style.color = theme.int
 	buttonUpRam.style.backgroundColor = buttonBG
 	buttonUpRam.onclick = function () { homeUp = true }
 
-	let buttonCrime = document.createElement("button")
+	let buttonCrime = doc.createElement("button")
 	let doCrime = false;
 	buttonCrime.innerHTML = "Crime";
 	buttonCrime.style.color = theme.hp;
 	buttonCrime.style.backgroundColor = buttonBG;
 	buttonCrime.onclick = function () { doCrime = true }
 
-	let buttonServer = document.createElement("button");
+	let buttonServer = doc.createElement("button");
 	buttonServer.innerHTML = "Manage";
 	buttonServer.style.color = theme.combat;
 	buttonServer.style.backgroundColor = buttonBG;
@@ -73,29 +75,29 @@ export async function main(ns) {
 	// 	ns.exec('extra_sv.js', 'home', 1, '--' + choice);
 	// };
 
-	let buttonTravel = document.createElement("button");
+	let buttonTravel = doc.createElement("button");
 	let travelB = false;
 	buttonTravel.innerHTML = "Travel";
 	buttonTravel.style.color = theme.combat;
 	buttonTravel.style.backgroundColor = buttonBG;
 	buttonTravel.onclick = function () { travelB = true }
 
-	let buttonStock = document.createElement("button")
+	let buttonStock = doc.createElement("button")
 	let stockB = false
 	buttonStock.innerHTML = "Stock"
 	buttonStock.style.color = theme.combat
 	buttonStock.style.backgroundColor = buttonBG
 	buttonStock.onclick = function () { stockB = true }
 
-	let hackDif = document.createElement("input"); hackDif.type = "checkbox"
-	let entropy = document.createElement("input"); entropy.type = "checkbox"
-	let player = document.createElement("input"); player.type = "checkbox"
-	let gang = document.createElement("input"); gang.type = "checkbox"
-	let income = document.createElement("input"); income.type = "checkbox"
-	let boughtSV = document.createElement("input"); boughtSV.type = "checkbox"
-	let usedRam = document.createElement("input"); usedRam.type = "checkbox"
-	let bladeSP = document.createElement("input"); bladeSP.type = "checkbox"
-	let blade = document.createElement("input"); blade.type = "checkbox"
+	let hackDif = doc.createElement("input"); hackDif.type = "checkbox"
+	let entropy = doc.createElement("input"); entropy.type = "checkbox"
+	let player = doc.createElement("input"); player.type = "checkbox"
+	let gang = doc.createElement("input"); gang.type = "checkbox"
+	let income = doc.createElement("input"); income.type = "checkbox"
+	let boughtSV = doc.createElement("input"); boughtSV.type = "checkbox"
+	let usedRam = doc.createElement("input"); usedRam.type = "checkbox"
+	let bladeSP = doc.createElement("input"); bladeSP.type = "checkbox"
+	let blade = doc.createElement("input"); blade.type = "checkbox"
 
 	hookHP.append("\xa0Gang", gang)
 	hookC.append("\xa0Gain", income, "\xa0Blade", blade)

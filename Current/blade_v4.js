@@ -232,7 +232,7 @@ export async function main(ns) {
     /** Notifies user if work count is ```0```. */
     function checkWorkCount(type = '', name = '') {
         if (actionCount(type, name) <= 0) {
-            ns.toast(`Remaining Work of ${name} is 0. Use Sleeve (Infiltrate) if possible.`, 'info');
+            ns.toast(`Remaining Work of ${name} is 0. Use Sleeve (Infiltrate) if possible.`, 'info', 20e3);
             return false;
         }
         return true;
