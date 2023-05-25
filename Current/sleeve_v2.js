@@ -1,7 +1,6 @@
-/** Version 2.2.3
- * Crime preset is now split into 2: Karma and Combat
- * Added Idle preset
- * Time report now includes date
+/** Version 2.2.4
+ * Now updates every second if all is Idling
+ * Task and time logging is now in the same function
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -26,22 +25,8 @@ export async function main(ns) {
     const crimeStats = crime => ns.singularity.getCrimeStats(crime);
     const setBladeWork = (id, task) => sl.setToBladeburnerAction(id, task);
 
-    // sort the ratio between time and exp gain of crimes with time <= 60s
-    // best 1st
-    const crimes = [
-        'shoplift',
-        'rob store',
-        'mug',
-        'larceny',
-        'deal drugs',
-        'bond forgery',
-        'traffick arms',
-        'homicide',
-        'grand theft auto',
-        'kidnap',
-        'assassination',
-        'heist',
-    ]
+    // sort the ratio between time and exp gain of crimes with time <= 60s, best 1st
+    const crimes = Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c])
         .sort((a, b) => compareCrimeStats(b, a))
         .filter(a => crimeStats(a).time <= 60e3);
 
@@ -175,6 +160,8 @@ export async function main(ns) {
         }
     });
 
+    const isAllIdle = sleeves.every(([t, a]) => t === 'Idle');
+
     while (true) {
         sleeves.forEach(([t, a], id) => {
             const augs = getAugs(id);
@@ -186,14 +173,7 @@ export async function main(ns) {
         });
 
         logTask();
-
-        const time = new Date();
-        ns.printf(
-            `\n At: ` +
-            `${time.getDate()}/${time.getMonth() + 1}` +
-            ` ${time.getHours() < 10 ? '0' : ''}${time.getHours()}:${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}`
-        );
-        await ns.sleep(600e3);
+        await ns.sleep(isAllIdle ? 1e3 : 600e3);
     }
 
     function logTask() {
@@ -221,6 +201,13 @@ export async function main(ns) {
             maxWidth = Math.max(maxWidth, taskStr.length);
             ns.print(taskStr);
         }
+
+        const time = new Date();
+        ns.printf(
+            `\n At: ` +
+            `${time.getDate()}/${time.getMonth() + 1}` +
+            ` ${time.getHours() < 10 ? '0' : ''}${time.getHours()}:${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}`
+        );
         ns.resizeTail(Math.max(250, maxWidth * 10), 280);
     }
 

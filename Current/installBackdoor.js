@@ -56,7 +56,7 @@ export async function main(ns) {
             await ns.singularity.installBackdoor();
             if (factions.includes(server))
                 ns.tprintf(` > ${server}: Backdoor installed`);
-            ns.toast(`Installed backdoor on ${server}`, 'success', 5e3);
+            ns.toast(`Installed backdoor on ${server}`, 'success', 7e3);
             count++;
             ns.singularity.connect('home');
         }

@@ -13,20 +13,7 @@ export async function main(ns) {
         ns.exit();
     }
 
-    const crimes = [
-        'Shoplift',
-        'Rob Store',
-        'Mug',
-        'Larceny',
-        'Deal Drugs',
-        'Bond Forgery',
-        'Traffick Arms',
-        'Homicide',
-        'Grand Theft Auto',
-        'Kidnap',
-        'Assassination',
-        'Heist',
-    ]
+    const crimes = Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c]);
 
     const crimeName = await ns.prompt('Choose crime', { 'type': 'select', 'choices': crimes });
     if (crimeName === '') ns.exit();
