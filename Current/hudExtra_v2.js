@@ -1,13 +1,10 @@
-/** Version 2.0
- * Now uses template for element creation
- * Significantly reduced the amount of options
- * All options now use button
+/** Version 2.0.1
+ * Fixed some words/properties that match ns keywords (extra RAM cost bad)
+ * Visual improvements for the buttons
  */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
-
-    const shadowSize = 3;
 
     const doc = eval('document');
     const hooks = {
@@ -27,32 +24,49 @@ export async function main(ns) {
 
     ns.atExit(() => Object.keys(hooks).forEach(hook => hooks[hook].innerHTML = ''));
 
+    const theme = ns.ui.getTheme();
+
+    const shadowSize = 0, shadowBlur = 5;
     const createElement = (type, attributes = {}, eventType, eventCallback = () => { }, hook = null) => {
         const element = Object.assign(doc.createElement(type), attributes);
         Object.assign(element, { title: `${element.innerHTML}` });
+        
         Object.assign(element.style, Object.assign(attributes.style, {
-            fontWeight: 'bold',
-            backgroundColor: theme.black,
+            fontWeight: 'normal',
+            fontFamily: "Cascadia Code",
+            height: '20px',
+            backgroundColor: theme.backgroundsecondary,
+            borderColor: theme.backgroundsecondary,
             cursor: 'pointer',
-            boxShadow: `0px 0px ${shadowSize}px ${element.style.color}`
+            boxShadow: `0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}`,
         }));
         element.addEventListener(eventType, eventCallback);
+        element.addEventListener('mouseover', (event) => {
+            event.target.style.backgroundColor = element.style.color;
+            event.target.style.borderColor = element.style.color;
+            event.target.style.boxShadow = `0px 0px ${shadowBlur}px ${shadowSize + 4}px ${element.style.color}`;
+            event.target.style.color = theme.backgroundsecondary;
+        });
+        element.addEventListener('mouseout', (event) => {
+            event.target.style.color = element.style.backgroundColor;
+            event.target.style.boxShadow = `0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}`;
+            event.target.style.backgroundColor = theme.backgroundsecondary;
+            event.target.style.borderColor = theme.backgroundsecondary;
+        });
         if (hook) hook.append('\xa0', element);
         return element;
     };
 
-    const theme = ns.ui.getTheme();
-
     const optionStates = {
-        crime: false,//
-        stock: false,//
-        runScript: false,//
-        manageServers: false,//
-        entropy: false,//
-        travel: false,//
-        buyRam: false,//
-        hudRestart: false,//
-        hudExit: false,//
+        crime: false,
+        stock: false,
+        runScript: false,
+        manageServers: false,
+        entropy: false,
+        traveling: false,
+        buyRam: false,
+        hudRestart: false,
+        hudExit: false,
     };
 
     // crime
@@ -74,7 +88,7 @@ export async function main(ns) {
     // run script
     createElement(
         'button',
-        { innerHTML: 'Run Script', style: { color: theme.hack } },
+        { innerHTML: 'Script', style: { color: theme['hack'] } },
         'click', () => optionStates.runScript = true,
         hooks.hookHack
     );
@@ -95,11 +109,11 @@ export async function main(ns) {
         hooks.hookDef
     );
 
-    // travel
+    // traveling
     createElement(
         'button',
         { innerHTML: 'Travel', style: { color: theme.combat } },
-        'click', () => optionStates.travel = true,
+        'click', () => optionStates.traveling = true,
         hooks.hookDex
     );
 
@@ -120,7 +134,7 @@ export async function main(ns) {
     );
     createElement(
         'button',
-        { innerHTML: 'Exit', style: { color: theme.warning } },
+        { innerHTML: 'Remove', style: { color: theme.warning } },
         'click', () => optionStates.hudExit = true,
         hooks.hookInt
     );
@@ -149,9 +163,9 @@ export async function main(ns) {
             hooks.hook0.innerText += `Entropy\nMult`;
             hooks.hook1.innerText += `${ns.getPlayer().entropy}\n${ns.formatPercent(0.98 ** ns.getPlayer().entropy, 2)}`;
         }
-        if (optionStates.travel) {
+        if (optionStates.traveling) {
             ns.exec('travel.js', 'home');
-            optionStates.travel = false;
+            optionStates.traveling = false;
         }
         if (optionStates.buyRam) {
             ns.exec('homeUpgrade.js', 'home');
