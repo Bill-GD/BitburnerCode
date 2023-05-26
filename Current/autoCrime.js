@@ -27,7 +27,7 @@ export async function main(ns) {
         ns.printf(` Crime: ${crimeName}`);
         ns.printf(` Time: ${ns.tFormat(crimeTime)}`);
         ns.print(` Chance: ${ns.formatPercent(ns.formulas.work.crimeSuccessChance(ns.getPlayer(), crimeName), 2)}`);
-        ns.print(` Karma: ${ns.formatNumber(ns.heart.break(), 1)}`);
+        ns.print(` Karma: ${ns.formatNumber(ns.heart.break(), 3)}`);
 
         await ns.asleep(ns.singularity.commitCrime(
             crimeName,

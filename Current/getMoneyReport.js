@@ -32,13 +32,13 @@ export async function main(ns) {
     Object.entries(ns.getMoneySources().sinceStart).forEach(([k, v]) => {
         if (k === 'total') return;
         totalMoney += v;
-        if (v !== 0) report += `${k.charAt(0).toUpperCase() + k.substring(1)}: $${ns.formatNumber(v)}\n`;
+        if (v !== 0) report += `${k.charAt(0).toUpperCase() + k.substring(1)}: $${ns.formatNumber(v, 3)}\n`;
         v > 0 ? gain += v : loss += Math.abs(v);
     });
 
-    report += `\nLoss: ${loss} (-${ns.formatNumber(loss)})\n` +
-        `Gain: ${gain} (+${ns.formatNumber(gain)})\n` +
-        `Total: ${totalMoney} (${ns.formatNumber(totalMoney)})\n\n` +
+    report += `\nLoss: ${loss} (-${ns.formatNumber(loss, 3)})\n` +
+        `Gain: ${gain} (+${ns.formatNumber(gain, 3)})\n` +
+        `Total: ${totalMoney} (${ns.formatNumber(totalMoney, 3)})\n\n` +
         `Time: ${bitnodeTime}`;
 
     ns.write('BitNode_Money_Report.txt', report, 'w');

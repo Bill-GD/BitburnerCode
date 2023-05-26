@@ -32,7 +32,7 @@ export async function main(ns) {
     if (option === '') ns.exit();
 
     if (option === 'cost') {
-        const ramFormatted = ramChoices.map(r => ns.formatRam(r));
+        const ramFormatted = ramChoices.map(r => ns.formatRam(r, 2));
 
         let ram = ramChoices[
             ramFormatted.indexOf(await ns.prompt(
@@ -41,7 +41,7 @@ export async function main(ns) {
             ))
         ];
         if (ram === '' || !ram) ns.exit();
-        ns.alert(`(!) $${ns.formatNumber(serverCost(ram), 1)} for 1 server with ${ns.formatRam(ram)} RAM`);
+        ns.alert(`(!) $${ns.formatNumber(serverCost(ram), 3)} for 1 server with ${ns.formatRam(ram, 2)} RAM`);
         ns.exit();
     }
 
@@ -72,7 +72,7 @@ export async function main(ns) {
             ns.exit();
         }
 
-        if (!(await ns.prompt(`Proceed to upgrade ${count} server to ${ns.formatRam(ram)}?`))) ns.exit();
+        if (!(await ns.prompt(`Proceed to upgrade ${count} server to ${ns.formatRam(ram, 2)}?`))) ns.exit();
         boughtServers.forEach(server => {
             if (ram > maxRamOf(server))
                 upgrade(server, ram) && ns.toast(`Upgraded ${server} to ${ns.formatRam(ram)}`, 'success', 5e3);
@@ -96,7 +96,7 @@ export async function main(ns) {
                 if (playerMoney() > serverCost(ramChoice))
                     purchase(serverName + boughtServers.length, ramChoice);
                 else {
-                    ns.alert(`(!) You don't have enough money to purchase (!)\nRequires $${ns.formatNumber(serverCost(ramChoice))}`);
+                    ns.alert(`(!) You don't have enough money to purchase (!)\nRequires $${ns.formatNumber(serverCost(ramChoice), 3)}`);
                     ns.exit();
                 }
                 break;
@@ -117,18 +117,18 @@ export async function main(ns) {
                 }
 
                 if (serverCost(ramChoice) * number > playerMoney()) {
-                    ns.alert(`(!) You don't have enough money to purchase (!)\nCost: $${ns.formatNumber(serverCost(ramChoice) * number)}`);
+                    ns.alert(`(!) You don't have enough money to purchase (!)\nCost: $${ns.formatNumber(serverCost(ramChoice) * number, 3)}`);
                     ns.exit();
                 }
 
-                if (await ns.prompt(`Proceed to buy ${number} server(s)?\nCost: $${ns.formatNumber(serverCost(ramChoice) * number)}`))
+                if (await ns.prompt(`Proceed to buy ${number} server(s)?\nCost: $${ns.formatNumber(serverCost(ramChoice) * number, 3)}`))
                     for (let i = boughtServers.length; i < boughtServers.length + number; i++)
                         purchase(serverName + i, ramChoice);
                 else ns.exit();
                 break;
             case option[2]:
                 const cost = serverCost(ramChoice) * (serverLimit - boughtServers.length);
-                if (await ns.prompt(`Proceed to buy ${serverLimit - boughtServers.length} server(s)?\nCost: $${ns.formatNumber(cost)}`)) {
+                if (await ns.prompt(`Proceed to buy ${serverLimit - boughtServers.length} server(s)?\nCost: $${ns.formatNumber(cost, 3)}`)) {
                     if (cost > playerMoney()) {
                         ns.alert(`(!) You don't have enough money to purchase (!)`);
                         ns.exit();

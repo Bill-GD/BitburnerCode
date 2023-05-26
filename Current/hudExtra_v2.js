@@ -1,7 +1,6 @@
-/** Version 2.1
- * Added option for some Player data
- * Changed how data is loaded into the hooks
- * Merged with 'runScript.js' -> reduce RAM
+/** Version 2.2
+ * All buttons now share the same width
+ * Added more features: hack control, clear terminal, grafting
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -30,10 +29,14 @@ export async function main(ns) {
 
     const theme = ns.ui.getTheme();
 
-    const shadowSize = 0, shadowBlur = 5;
+    let maxTextWidth = 0;
+    let buttons = [];
+
+    const shadowSize = 0.5, shadowBlur = 3.5;
     const createElement = (type, attributes = {}, eventType, eventCallback = () => { }, hook = null) => {
         const element = Object.assign(doc.createElement(type), attributes);
         Object.assign(element, { title: `${element.innerHTML}` });
+        maxTextWidth = Math.max(maxTextWidth, element.innerHTML.length);
 
         Object.assign(element.style, Object.assign(attributes.style, {
             fontWeight: 'normal',
@@ -43,6 +46,7 @@ export async function main(ns) {
             borderColor: theme.backgroundsecondary,
             cursor: 'pointer',
             boxShadow: `0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}`,
+            transition: 'all 0.2s ease-in',
         }));
         element.addEventListener(eventType, eventCallback);
         element.addEventListener('mouseover', (event) => {
@@ -58,18 +62,23 @@ export async function main(ns) {
             event.target.style.borderColor = theme.backgroundsecondary;
         });
         if (hook) hook.append('\xa0', element);
+        buttons.push(element);
         return element;
     };
 
     const optionStates = {
         player: false,
+        entropy: false,
         crime: false,
         stock: false,
-        runScript: false,
+        hacking: false,//
         manageServers: false,
-        entropy: false,
+        graft: false,
+        graftMultiple: false,
+        runScript: false,
         traveling: false,
         buyRam: false,
+        clearTerminal: false,
         hudRestart: false,
         hudExit: false,
     };
@@ -79,6 +88,14 @@ export async function main(ns) {
         'button',
         { innerHTML: 'Player', style: { color: theme.hp } },
         'click', () => optionStates.player = !optionStates.player,
+        hooks.hookHP
+    );
+
+    // entropy
+    createElement(
+        'button',
+        { innerHTML: 'Entropy', style: { color: theme.hp } },
+        'click', () => optionStates.entropy = !optionStates.entropy,
         hooks.hookHP
     );
 
@@ -93,9 +110,41 @@ export async function main(ns) {
     // stock
     createElement(
         'button',
-        { innerHTML: 'Stock', style: { color: theme['hack'] } },
+        { innerHTML: 'Stock', style: { color: theme.money } },
         'click', () => optionStates.stock = true,
+        hooks.hookMoney
+    );
+
+    // hack
+    createElement(
+        'button',
+        { innerHTML: 'Hack', style: { color: theme['hack'] } },
+        'click', () => optionStates.hacking = true,
         hooks.hookHack
+    );
+
+    // manage servers
+    createElement(
+        'button',
+        { innerHTML: 'Servers', style: { color: theme['hack'] } },
+        'click', () => optionStates.manageServers = true,
+        hooks.hookHack
+    );
+
+    // grafting
+    createElement(
+        'button',
+        { innerHTML: 'Graft', style: { color: theme.combat } },
+        'click', () => optionStates.graft = true,
+        hooks.hookStr
+    );
+
+    // graft multiple
+    createElement(
+        'button',
+        { innerHTML: 'Multi', style: { color: theme.combat } },
+        'click', () => optionStates.graftMultiple = true,
+        hooks.hookStr
     );
 
     // run script
@@ -103,23 +152,7 @@ export async function main(ns) {
         'button',
         { innerHTML: 'Script', style: { color: theme.combat } },
         'click', () => optionStates.runScript = true,
-        hooks.hookStr
-    );
-
-    // manage servers
-    createElement(
-        'button',
-        { innerHTML: 'Servers', style: { color: theme.combat } },
-        'click', () => optionStates.manageServers = true,
         hooks.hookDef
-    );
-
-    // grafting
-    createElement(
-        'button',
-        { innerHTML: 'Entropy', style: { color: theme.combat } },
-        'click', () => optionStates.entropy = !optionStates.entropy,
-        hooks.hookDex
     );
 
     // traveling
@@ -133,9 +166,23 @@ export async function main(ns) {
     // buy ram
     createElement(
         'button',
-        { innerHTML: 'Buy Ram', style: { color: theme.cha } },
+        { innerHTML: 'RAM', style: { color: theme.cha } },
         'click', () => optionStates.buyRam = true,
         hooks.hookCha
+    );
+
+    // cls;ls
+    createElement(
+        'button',
+        { innerHTML: 'CLS;LS', style: { color: theme.int } },
+        'click', () => {
+            const terminalInput = doc.getElementById('terminal-input');
+            terminalInput.value = 'cls;ls';
+            const handler = Object.keys(terminalInput)[1];
+            terminalInput[handler].onChange({ target: terminalInput });
+            terminalInput[handler].onKeyDown({ key: 'Enter', preventDefault: () => null });
+        },
+        hooks.hookInt
     );
 
     // restart & exit
@@ -143,7 +190,7 @@ export async function main(ns) {
         'button',
         { innerHTML: 'Restart', style: { color: theme.warning } },
         'click', () => optionStates.hudRestart = true,
-        hooks.hookInt
+        hooks.hook2
     );
     createElement(
         'button',
@@ -151,6 +198,8 @@ export async function main(ns) {
         'click', () => optionStates.hudExit = true,
         hooks.hook2
     );
+
+    buttons.forEach(bt => Object.assign(bt.style, { width: `${maxTextWidth * 10}px` }));
 
     while (await ns.sleep(10)) {
         try {
@@ -163,8 +212,16 @@ export async function main(ns) {
                 value = [
                     ...value,
                     `${player.city}`,
-                    `${ns.formatNumber(ns.heart.break())}`,
-                    `${ns.formatNumber(player.numPeopleKilled, 0)}`,
+                    `${ns.formatNumber(ns.heart.break(), 3)}`,
+                    `${ns.formatNumber(player.numPeopleKilled, 3)}`,
+                ];
+            }
+            if (optionStates.entropy) {
+                key = [...key, `Entropy`, `Mult`];
+                value = [
+                    ...value,
+                    `${getPlayer().entropy}`,
+                    `${ns.formatPercent(0.98 ** getPlayer().entropy, 2)}`
                 ];
             }
             if (optionStates.crime) {
@@ -174,6 +231,22 @@ export async function main(ns) {
             if (optionStates.stock) {
                 ns.exec('stockControl.js', 'home');
                 optionStates.stock = false;
+            }
+            if (optionStates.hacking) {
+                ns.exec('controlHack.js', 'home');
+                optionStates.hacking = false;
+            }
+            if (optionStates.manageServers) {
+                ns.exec('extraServer_v2.js', 'home');
+                optionStates.manageServers = false;
+            }
+            if (optionStates.graft) {
+                ns.exec('graft.js', 'home');
+                optionStates.graft = false;
+            }
+            if (optionStates.graftMultiple) {
+                ns.exec('graftMultiple.js', 'home');
+                optionStates.graftMultiple = false;
             }
             if (optionStates.runScript) {
                 const file = await ns.prompt(
@@ -185,23 +258,11 @@ export async function main(ns) {
                     thread = isNaN(parseInt(thread)) ? 1 : parseInt(thread);
 
                     const args = (await ns.prompt('Arguments?\nSeparate by spaces', { 'type': 'text' }))
-                        .split(' ').filter(arg => arg === '');
+                        .split(' ').filter(arg => arg !== '');
 
                     ns.exec(file, 'home', thread, ...args);
                 }
                 optionStates.runScript = false;
-            }
-            if (optionStates.manageServers) {
-                ns.exec('extraServer_v2.js', 'home');
-                optionStates.manageServers = false;
-            }
-            if (optionStates.entropy) {
-                key = [...key, `Entropy`, `Mult`];
-                value = [
-                    ...value,
-                    `${getPlayer().entropy}`,
-                    `${ns.formatPercent(0.98 ** getPlayer().entropy, 2)}`
-                ];
             }
             if (optionStates.traveling) {
                 ns.exec('travel.js', 'home');
@@ -211,7 +272,7 @@ export async function main(ns) {
                 ns.exec('homeUpgrade.js', 'home');
                 optionStates.buyRam = false;
             }
-            if (optionStates.hudRestart) ns.exec('restart.js', 'home', 1, ns.getScriptName());
+            if (optionStates.hudRestart) ns.exec('restart.js', 'home', 1, 'hudExtra_v2.js');
             if (optionStates.hudExit) ns.exit();
 
             hooks.hook0.innerText = key.join('\n');

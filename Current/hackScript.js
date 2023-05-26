@@ -1,9 +1,6 @@
-/** Version 2.0 
- * (1.0 was the previous version of this new script, old script (new_hack.js) is considered separate (<- lost))
- * 
- * Added support for purchased servers (compatibility with extraServer_v2.js)
- * Added support for servers with high RAM (basically purchased servers)
- * Rewrote the majority of the code
+/** Version 2.0.1
+ * Fixed bug with thread: can only increase
+ * Rewrote grow thread calculation, it's now mutable -> can update if hack thread is fixed
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -36,12 +33,12 @@ export async function main(ns) {
 
     const files = {
         control: { name: 'hackScript.js', ram: ns.getScriptRam('hackScript.js') },
-        weaken: { name: 'weaken.js', ram: ns.getScriptRam('weaken.js') },
-        grow: { name: 'grow.js', ram: ns.getScriptRam('grow.js') },
+        weakening: { name: 'weaken.js', ram: ns.getScriptRam('weaken.js') },
+        growing: { name: 'grow.js', ram: ns.getScriptRam('grow.js') },
         hacking: { name: 'hack.js', ram: ns.getScriptRam('hack.js') },
     };
 
-    // servers
+    // * Servers info
     const currentServer = ns.getHostname();
     let targetServer = hackFromPurchasedServer ? servers[0] : currentServer;
     let timeHack = ns.getHackTime(targetServer),
@@ -50,7 +47,7 @@ export async function main(ns) {
     const minSec = ns.getServerMinSecurityLevel(targetServer),
         serverMaxRam = ns.getServerMaxRam(currentServer);
 
-    // wait until met hacking requirement
+    // * Wait for hacking requirement
     if (!hackFromPurchasedServer) {
         const serverHackReq = ns.getServerRequiredHackingLevel(currentServer);
         while (serverHackReq > ns.getHackingLevel()) {
@@ -69,59 +66,55 @@ export async function main(ns) {
                 targetServer = servers[Math.trunc(Math.random() * servers.length)];
             } while (ns.getServerRequiredHackingLevel(targetServer) > ns.getHackingLevel());
 
-        try {
-            ns.clearLog();
-            timeHack = ns.getHackTime(targetServer);
-            timeWeak = ns.getWeakenTime(targetServer);
-            timeGrow = ns.getGrowTime(targetServer);
+        ns.clearLog();
+        timeHack = ns.getHackTime(targetServer);
+        timeWeak = ns.getWeakenTime(targetServer);
+        timeGrow = ns.getGrowTime(targetServer);
 
-            let willHack = currentMoney(targetServer) > 0,
-                willGrow = currentMoney(targetServer) < maxMoney(targetServer),
-                willWeak = currentSec(targetServer) > minSec;
+        let willHack = currentMoney(targetServer) > 0,
+            willGrow = currentMoney(targetServer) < maxMoney(targetServer),
+            willWeak = currentSec(targetServer) > minSec;
 
-            const maxHackThread = (serverMaxRam - files.control.ram) / files.hacking.ram;
-            let [hackThread, hackSecIncrease, hackMoney, growThreadMoney, growSecIncrease, weakThreadSec, weakSecDecrease, usedRam] = await calculateThread(willHack, willGrow, willWeak, maxHackThread);
+        const maxHackThread = Math.trunc((serverMaxRam - files.control.ram) / files.hacking.ram);
+        let [hackThread, hackSecIncrease, hackMoney, growThreadMoney, growSecIncrease, weakThreadSec, weakSecDecrease, usedRam] = await calculateThread(willHack, willGrow, willWeak, maxHackThread);
 
-            // log result if success
-            ns.clearLog();
-            ns.print(`${currentServer} -> ${targetServer}`);
-            ns.print(`${ns.formatRam(usedRam)} / ${ns.formatRam(serverMaxRam)}`);
-            ns.print(`Weak (th=${weakThreadSec}):` +
-                `\n time: ${ns.tFormat(timeWeak)}` +
-                `\n ${ns.formatNumber(currentSec(targetServer))} / ${minSec} (weak -> -${ns.formatNumber(weakSecDecrease)})`);
-            ns.print(`Grow (th=${growThreadMoney}):` +
-                `\n time: ${ns.tFormat(timeGrow)}` +
-                `\n current: $${ns.formatNumber(currentMoney(targetServer))}` +
-                `\n sec: +${ns.formatNumber(growSecIncrease)}`);
-            ns.print(`Hack (th=${hackThread}, ${ns.formatPercent(ns.hackAnalyzeChance(currentServer))}):` +
-                `\n time: ${ns.tFormat(timeHack)}` +
-                `\n take: $${ns.formatNumber(Math.min(hackMoney * currentMoney(targetServer), currentMoney(targetServer)))}` +
-                `\n sec: +${ns.formatNumber(hackSecIncrease)}`);
+        // * Log result
+        ns.clearLog();
+        ns.print(`${currentServer} -> ${targetServer}`);
+        ns.print(`${ns.formatRam(usedRam, 2)} / ${ns.formatRam(serverMaxRam, 2)}`);
+        ns.print(`Weak (th=${weakThreadSec}):` +
+            `\n time: ${ns.tFormat(timeWeak)}` +
+            `\n ${ns.formatNumber(currentSec(targetServer), 3)} / ${minSec} (weak -> -${ns.formatNumber(weakSecDecrease, 3)})`);
+        ns.print(`Grow (th=${growThreadMoney}):` +
+            `\n time: ${ns.tFormat(timeGrow)}` +
+            `\n current: $${ns.formatNumber(currentMoney(targetServer), 3)}` +
+            `\n sec: +${ns.formatNumber(growSecIncrease)}`);
+        ns.print(`Hack (th=${hackThread}, ${ns.formatPercent(ns.hackAnalyzeChance(currentServer), 2)}):` +
+            `\n time: ${ns.tFormat(timeHack)}` +
+            `\n take: $${ns.formatNumber(Math.min(hackMoney * currentMoney(targetServer), currentMoney(targetServer)), 3)}` +
+            `\n sec: +${ns.formatNumber(hackSecIncrease, 3)}`);
 
-            if (usedRam > serverMaxRam) {
-                ns.alert(`Ram usage overflows\n${ns.formatRam(usedRam)} / ${ns.formatRam(serverMaxRam)}`);
-                return;
-            }
-            if ((willHack && hackThread <= 0) || (willWeak && weakThreadSec <= 0) || (willGrow && growThreadMoney <= 0)) {
-                ns.alert(`Thread count must be positive\n hack=${hackThread},weak=${weakThreadSec},grow=${growThreadMoney}`);
-                return;
-            }
+        if (usedRam > serverMaxRam) {
+            ns.alert(`Ram usage overflows\n${ns.formatRam(usedRam, 2)} / ${ns.formatRam(serverMaxRam, 2)}`);
+            return;
+        }
+        if ((willHack && hackThread <= 0) || (willWeak && weakThreadSec <= 0) || (willGrow && growThreadMoney <= 0)) {
+            ns.alert(`Thread count must be positive\n hack=${hackThread},weak=${weakThreadSec},grow=${growThreadMoney}`);
+            return;
+        }
 
-            // execute
-            if (willWeak) {
-                ns.run(files.weaken.name, weakThreadSec, targetServer);
-                await ns.sleep(willGrow ? timeWeak - timeGrow : timeWeak);
-            }
-            if (willGrow) {
-                ns.run(files.grow.name, growThreadMoney, targetServer);
-                await ns.sleep(willHack ? timeGrow - timeHack + 20 : timeGrow);
-            }
-            if (willHack) {
-                ns.run(files.hacking.name, hackThread, targetServer);
-                await ns.sleep(timeHack);
-            }
-        } catch (error) {
-            ns.tprintf(`${ns.getHostname()}: ${error.name}, ${error.message}\n${error.cause}, ${error.lineNumber}`);
+        // execute
+        if (willWeak) {
+            ns.run(files.weakening.name, weakThreadSec, targetServer);
+            await ns.sleep(willGrow ? timeWeak - timeGrow : timeWeak);
+        }
+        if (willGrow) {
+            ns.run(files.growing.name, growThreadMoney, targetServer);
+            await ns.sleep(willHack ? timeGrow - timeHack + 20 : timeGrow);
+        }
+        if (willHack) {
+            ns.run(files.hacking.name, hackThread, targetServer);
+            await ns.sleep(timeHack);
         }
         await ns.sleep(100);
     }
@@ -135,36 +128,38 @@ export async function main(ns) {
             weakSecDecrease = 0;
 
         if (!willHack) hackThread = 0;
-        [hackSecIncrease, hackMoney] = getHackChanges(willHack, hackThread);
-        [growThreadMoney, growSecIncrease] = getGrowChanges(willGrow, hackMoney);
+        [hackSecIncrease, hackMoney, growThreadMoney] = getHackChanges(willHack, hackThread);
+        growSecIncrease = willGrow ? ns.growthAnalyzeSecurity(growThreadMoney, targetServer) : 0;
         [weakThreadSec, weakSecDecrease] = await getWeakChanges(willWeak, hackSecIncrease, growSecIncrease);
 
-        let usedRam = files.control.ram + files.hacking.ram * hackThread + files.grow.ram * growThreadMoney + files.weaken.ram * weakThreadSec;
+        let usedRam = files.control.ram + files.hacking.ram * hackThread + files.growing.ram * growThreadMoney + files.weakening.ram * weakThreadSec;
         while (usedRam > serverMaxRam) {
             // decrease hackTh if hackTh > 1
-            // -> calculate growTh (-1 if hackTh unchanged) -> recalculate weakTh
+            // -> decrease growTh (if hackTh reached limit) -> recalculate weakTh
             if (hackThread > 1) {
-                hackThread -= (usedRam - serverMaxRam) / files.hacking.ram;
-                [hackSecIncrease, hackMoney] = getHackChanges(willHack, hackThread);
-                [growThreadMoney, growSecIncrease] = getGrowChanges(willGrow, hackMoney);
+                hackThread = Math.trunc(hackThread / 1.5);
+                [hackSecIncrease, hackMoney, growThreadMoney] = getHackChanges(willHack, hackThread);
+                growSecIncrease = willGrow ? ns.growthAnalyzeSecurity(growThreadMoney, targetServer) : 0;
                 [weakThreadSec, weakSecDecrease] = await getWeakChanges(willWeak, hackSecIncrease, growSecIncrease);
             }
             else {
-                [growThreadMoney, growSecIncrease] = getGrowChanges(willGrow, hackMoney);
+                growThreadMoney = Math.trunc(growThreadMoney / 1.5);
+                growSecIncrease = willGrow ? ns.growthAnalyzeSecurity(growThreadMoney, targetServer) : 0;
                 [weakThreadSec, weakSecDecrease] = await getWeakChanges(willWeak, hackSecIncrease, growSecIncrease);
             }
 
-            usedRam = files.control.ram + files.hacking.ram * hackThread + files.grow.ram * growThreadMoney + files.weaken.ram * weakThreadSec;
-            // ns.print(
-            //     `hackThread: ${hackThread}\n` +
-            //     `hackSecIncrease: ${hackSecIncrease}\n` +
-            //     `hackMoney: ${hackMoney}\n` +
-            //     `growThreadMoney: ${growThreadMoney}\n` +
-            //     `growSecIncrease: ${growSecIncrease}\n` +
-            //     `weakThreadSec: ${weakThreadSec}\n` +
-            //     `weakSecDecrease: ${weakSecDecrease}\n` +
-            //     `usedRam: ${usedRam}\n\n`
-            // );
+            usedRam = files.control.ram + files.hacking.ram * hackThread + files.growing.ram * growThreadMoney + files.weakening.ram * weakThreadSec;
+            ns.print(
+                `hackThread: ${hackThread}\n` +
+                `hackSecIncrease: ${hackSecIncrease}\n` +
+                `hackMoney: ${hackMoney}\n` +
+                `growThreadMoney: ${growThreadMoney}\n` +
+                `growSecIncrease: ${growSecIncrease}\n` +
+                `weakThreadSec: ${weakThreadSec}\n` +
+                `weakSecDecrease: ${weakSecDecrease}\n` +
+                `maxRam: ${serverMaxRam}\n` +
+                `usedRam: ${usedRam}\n\n`
+            );
             await ns.sleep(10);
         }
 
@@ -172,18 +167,14 @@ export async function main(ns) {
     }
 
     function getHackChanges(willHack, hackThread) {
-        // security increase from hack & money from hack
-        return willHack ? [ns.hackAnalyzeSecurity(hackThread, targetServer), ns.hackAnalyze(targetServer) * hackThread] : [0, 0];
-    }
-
-    function getGrowChanges(willGrow, hackMoney) {
-        // grow thread needed to grow back money stolen & security increase
+        // security increase & money percentage & grow thread from hack
+        const hackMoney = ns.hackAnalyze(targetServer) * hackThread;
         const growThreadMoney = Math.max(1, Math.ceil(ns.growthAnalyze(targetServer, hackMoney + 1)));
-        return willGrow ? [growThreadMoney, ns.growthAnalyzeSecurity(growThreadMoney, targetServer)] : [0, 0];
+        return willHack ? [ns.hackAnalyzeSecurity(hackThread, targetServer), hackMoney, growThreadMoney] : [0, 0, 0];
     }
 
     async function getWeakChanges(willWeak, hackSecIncrease, growSecIncrease) {
-        // weak thread from hack & grow security
+        // hack & grow security -> weak thread
         let weakThreadSec = 1;
         while (ns.weakenAnalyze(weakThreadSec) < hackSecIncrease + growSecIncrease) {
             weakThreadSec++;

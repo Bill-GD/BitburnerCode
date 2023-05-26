@@ -47,11 +47,9 @@ export async function main(ns) {
     for (const server of servers) {
         if (ns.hasRootAccess(server) && ns.getServerMaxRam(server) > totalRam) {
             ns.killall(server, true);
-            for (const file of files)
-                // if (!ns.fileExists(file, server))
-                ns.scp(file, server);
-            count++;
+            ns.scp(files, server, 'home');
             ns.exec(files[0], server);
+            count++;
         }
         await ns.sleep(10);
     }

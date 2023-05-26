@@ -25,7 +25,7 @@ export async function main(ns) {
     const crimeStats = crime => ns.singularity.getCrimeStats(crime);
     const setBladeWork = (id, task) => sl.setToBladeburnerAction(id, task);
 
-    // sort the ratio between time and exp gain of crimes with time <= 60s, best 1st
+    // sort the ratio between time and exp gain of crimes, best 1st
     const crimes = Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c])
         .sort((a, b) => compareCrimeStats(b, a));
 
@@ -69,6 +69,9 @@ export async function main(ns) {
             sleeves = Array(numSleeve()).fill().map(() => ['Crime', 'combat']);
             break;
         case 'Karma':
+            if (await ns.prompt('Limit Crime time to 30 sec?'))
+                crimes.filter(a => crimeStats(a).time <= 30e3);
+            chanceLimit = await ns.prompt('Only select Crimes with chance of 80% or more?');
             sleeves = Array(numSleeve()).fill().map(() => ['Crime', 'karma']);
             break;
         case 'Infiltrate':
@@ -155,8 +158,11 @@ export async function main(ns) {
                     setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
                 }
                 if (action === 'karma') {
-                    crimes.sort((a, b) => crimeStats(b).karma - crimeStats(a).karma);
-                    setCrimeTask(id, crimes[0]);
+                    crimes.sort((a, b) => compareCrimeKarma(b, a));
+                    let crimeTask = null;
+                    if (chanceLimit)
+                        crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
+                    setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
                 }
                 break;
             case 'Blade':
@@ -186,7 +192,7 @@ export async function main(ns) {
         ns.clearLog();
         for (let id = 0; id < numSleeve(); id++) {
             let task = sl.getTask(id);
-            if (!task) task = `Idle (${ns.formatNumber(getSleeve(id).storedCycles)})`;
+            if (!task) task = `Idle (${ns.formatNumber(getSleeve(id).storedCycles, 3)})`;
             else
                 switch (task.type.toLowerCase()) {
                     case 'bladeburner':
@@ -235,6 +241,17 @@ export async function main(ns) {
             });
             score1 /= stats1.time;
             score2 /= stats2.time;
+            return score1 - score2;
+        } catch (error) { }
+    }
+
+    function compareCrimeKarma(crime1, crime2) {
+        const stats1 = crimeStats(crime1),
+            stats2 = crimeStats(crime2);
+        let score1 = 0, score2 = 0;
+        try {
+            score1 = stats1.karma / stats1.time;
+            score2 = stats2.karma / stats2.time;
             return score1 - score2;
         } catch (error) { }
     }

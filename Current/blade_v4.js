@@ -85,17 +85,17 @@ export async function main(ns) {
         const city = blade.getCity();
         ns.clearLog();
         ns.print(
-            ` Avg. Contract: ${ns.formatPercent(averageTaskChance('contract', contracts), 1)}` +
-            `, Avg. Operation: ${ns.formatPercent(averageTaskChance('operation', operations), 1)}\n` +
-            (currentBlackOp !== '' ? ` ${currentBlackOp}: ${ns.formatPercent(successChance('black op', currentBlackOp)[0], 1)}` : '')
+            ` Avg. Contract: ${ns.formatPercent(averageTaskChance('contract', contracts), 2)}` +
+            `, Avg. Operation: ${ns.formatPercent(averageTaskChance('operation', operations), 2)}\n` +
+            (currentBlackOp !== '' ? ` ${currentBlackOp}: ${ns.formatPercent(successChance('black op', currentBlackOp)[0], 2)}` : '')
         );
         ns.printf(` Current action: ${type}\n > ${name}${count > 1 ? ` x${count}` : ''}`);
         ns.printf(' ----------------------------------');
         ns.printf(
-            ` Rank: ${ns.formatNumber(blade.getRank())} / ${ns.formatNumber(blade.getBlackOpRank(currentBlackOp))}` +
-            `, SP: ${ns.formatNumber(blade.getSkillPoints())}`);
-        ns.printf(` Stamina: ${ns.formatNumber(blade.getStamina()[0], 1)} / ${ns.formatNumber(blade.getStamina()[1], 1)}`);
-        ns.printf(` City: ${city}, Chaos: ${ns.formatNumber(cityChaos(city))}, Pop: ${ns.formatNumber(populationOf(city))}`);
+            ` Rank: ${ns.formatNumber(blade.getRank(), 3)} / ${ns.formatNumber(blade.getBlackOpRank(currentBlackOp), 3)}` +
+            `, SP: ${ns.formatNumber(blade.getSkillPoints(), 3)}`);
+        ns.printf(` Stamina: ${ns.formatNumber(blade.getStamina()[0], 3)} / ${ns.formatNumber(blade.getStamina()[1], 3)}`);
+        ns.printf(` City: ${city}, Chaos: ${ns.formatNumber(cityChaos(city), 3)}, Pop: ${ns.formatNumber(populationOf(city), 3)}`);
     }
 
     /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code) */
