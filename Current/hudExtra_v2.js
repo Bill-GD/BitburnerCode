@@ -1,10 +1,14 @@
-/** Version 2.0.1
- * Fixed some words/properties that match ns keywords (extra RAM cost bad)
- * Visual improvements for the buttons
+/** Version 2.1
+ * Added option for some Player data
+ * Changed how data is loaded into the hooks
+ * Merged with 'runScript.js' -> reduce RAM
  */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
+    ns.clearLog();
+
+    const getPlayer = () => ns.getPlayer();
 
     const doc = eval('document');
     const hooks = {
@@ -30,7 +34,7 @@ export async function main(ns) {
     const createElement = (type, attributes = {}, eventType, eventCallback = () => { }, hook = null) => {
         const element = Object.assign(doc.createElement(type), attributes);
         Object.assign(element, { title: `${element.innerHTML}` });
-        
+
         Object.assign(element.style, Object.assign(attributes.style, {
             fontWeight: 'normal',
             fontFamily: "Cascadia Code",
@@ -58,6 +62,7 @@ export async function main(ns) {
     };
 
     const optionStates = {
+        player: false,
         crime: false,
         stock: false,
         runScript: false,
@@ -69,28 +74,36 @@ export async function main(ns) {
         hudExit: false,
     };
 
+    // player
+    createElement(
+        'button',
+        { innerHTML: 'Player', style: { color: theme.hp } },
+        'click', () => optionStates.player = !optionStates.player,
+        hooks.hookHP
+    );
+
     // crime
     createElement(
         'button',
-        { innerHTML: 'Crime', style: { color: theme.hp } },
+        { innerHTML: 'Crime', style: { color: theme.money } },
         'click', () => optionStates.crime = true,
-        hooks.hookHP
+        hooks.hookMoney
     );
 
     // stock
     createElement(
         'button',
-        { innerHTML: 'Stock', style: { color: theme.money } },
+        { innerHTML: 'Stock', style: { color: theme['hack'] } },
         'click', () => optionStates.stock = true,
-        hooks.hookMoney
+        hooks.hookHack
     );
 
     // run script
     createElement(
         'button',
-        { innerHTML: 'Script', style: { color: theme['hack'] } },
+        { innerHTML: 'Script', style: { color: theme.combat } },
         'click', () => optionStates.runScript = true,
-        hooks.hookHack
+        hooks.hookStr
     );
 
     // manage servers
@@ -98,7 +111,7 @@ export async function main(ns) {
         'button',
         { innerHTML: 'Servers', style: { color: theme.combat } },
         'click', () => optionStates.manageServers = true,
-        hooks.hookStr
+        hooks.hookDef
     );
 
     // grafting
@@ -106,7 +119,7 @@ export async function main(ns) {
         'button',
         { innerHTML: 'Entropy', style: { color: theme.combat } },
         'click', () => optionStates.entropy = !optionStates.entropy,
-        hooks.hookDef
+        hooks.hookDex
     );
 
     // traveling
@@ -114,15 +127,15 @@ export async function main(ns) {
         'button',
         { innerHTML: 'Travel', style: { color: theme.combat } },
         'click', () => optionStates.traveling = true,
-        hooks.hookDex
+        hooks.hookAgi
     );
 
     // buy ram
     createElement(
         'button',
-        { innerHTML: 'Buy Ram', style: { color: theme.combat } },
+        { innerHTML: 'Buy Ram', style: { color: theme.cha } },
         'click', () => optionStates.buyRam = true,
-        hooks.hookAgi
+        hooks.hookCha
     );
 
     // restart & exit
@@ -130,48 +143,81 @@ export async function main(ns) {
         'button',
         { innerHTML: 'Restart', style: { color: theme.warning } },
         'click', () => optionStates.hudRestart = true,
-        hooks.hookCha
+        hooks.hookInt
     );
     createElement(
         'button',
         { innerHTML: 'Remove', style: { color: theme.warning } },
         'click', () => optionStates.hudExit = true,
-        hooks.hookInt
+        hooks.hook2
     );
 
     while (await ns.sleep(10)) {
-        hooks.hook0.innerText = 'BitNode\n';
-        hooks.hook1.innerText = ns.getPlayer().bitNodeN + '\n';
-        if (optionStates.crime) {
-            ns.exec('autoCrime.js', 'home');
-            optionStates.crime = false;
+        try {
+            let key = ['BitNode'];
+            let value = [ns.getResetInfo().currentNode];
+
+            if (optionStates.player) {
+                const player = getPlayer();
+                key = [...key, 'City', 'Karma', 'Kills',];
+                value = [
+                    ...value,
+                    `${player.city}`,
+                    `${ns.formatNumber(ns.heart.break())}`,
+                    `${ns.formatNumber(player.numPeopleKilled, 0)}`,
+                ];
+            }
+            if (optionStates.crime) {
+                ns.exec('autoCrime.js', 'home');
+                optionStates.crime = false;
+            }
+            if (optionStates.stock) {
+                ns.exec('stockControl.js', 'home');
+                optionStates.stock = false;
+            }
+            if (optionStates.runScript) {
+                const file = await ns.prompt(
+                    'Choose script to run\nIgnore to exit',
+                    { 'type': 'select', 'choices': ns.ls('home', '.js') }
+                );
+                if (file !== '') {
+                    let thread = await ns.prompt('Thread count?', { 'type': 'text' });
+                    thread = isNaN(parseInt(thread)) ? 1 : parseInt(thread);
+
+                    const args = (await ns.prompt('Arguments?\nSeparate by spaces', { 'type': 'text' }))
+                        .split(' ').filter(arg => arg === '');
+
+                    ns.exec(file, 'home', thread, ...args);
+                }
+                optionStates.runScript = false;
+            }
+            if (optionStates.manageServers) {
+                ns.exec('extraServer_v2.js', 'home');
+                optionStates.manageServers = false;
+            }
+            if (optionStates.entropy) {
+                key = [...key, `Entropy`, `Mult`];
+                value = [
+                    ...value,
+                    `${getPlayer().entropy}`,
+                    `${ns.formatPercent(0.98 ** getPlayer().entropy, 2)}`
+                ];
+            }
+            if (optionStates.traveling) {
+                ns.exec('travel.js', 'home');
+                optionStates.traveling = false;
+            }
+            if (optionStates.buyRam) {
+                ns.exec('homeUpgrade.js', 'home');
+                optionStates.buyRam = false;
+            }
+            if (optionStates.hudRestart) ns.exec('restart.js', 'home', 1, ns.getScriptName());
+            if (optionStates.hudExit) ns.exit();
+
+            hooks.hook0.innerText = key.join('\n');
+            hooks.hook1.innerText = value.join('\n');
+        } catch (e) {
+            ns.alert(e.cause + ' ');
         }
-        if (optionStates.stock) {
-            ns.exec('stockControl.js', 'home');
-            optionStates.stock = false;
-        }
-        if (optionStates.runScript) {
-            ns.exec('runScript.js', 'home');
-            optionStates.runScript = false;
-        }
-        if (optionStates.manageServers) {
-            // ns.exec('extra_sv.js', 'home');
-            ns.alert(`'extra_sv.js' isn't compatible right now`);
-            optionStates.manageServers = false;
-        }
-        if (optionStates.entropy) {
-            hooks.hook0.innerText += `Entropy\nMult`;
-            hooks.hook1.innerText += `${ns.getPlayer().entropy}\n${ns.formatPercent(0.98 ** ns.getPlayer().entropy, 2)}`;
-        }
-        if (optionStates.traveling) {
-            ns.exec('travel.js', 'home');
-            optionStates.traveling = false;
-        }
-        if (optionStates.buyRam) {
-            ns.exec('homeUpgrade.js', 'home');
-            optionStates.buyRam = false;
-        }
-        if (optionStates.hudRestart) ns.exec('restart.js', 'home', 1, ns.getScriptName());
-        if (optionStates.hudExit) ns.exit();
     }
 }

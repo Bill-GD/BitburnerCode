@@ -29,7 +29,7 @@ export async function main(ns) {
     const opSuccessMult = () => skillLvl(`Digital Observer`) * 0.04 + 1;
 
     // const
-    const cities = ["Sector-12", "Aevum", "Volhaven", "Chongqing", "New Tokyo", "Ishima"];
+    const cities = Object.keys(ns.enums.CityName).map(c => ns.enums.CityName[c]);
     const contracts = blade.getContractNames();
     const operations = blade.getOperationNames();
     operations.splice(3, 1); // removes 'Raid'
@@ -46,14 +46,13 @@ export async function main(ns) {
 
         // contracts
         await checkAccuracy('contract', 'Tracking');
-        if (successChance('contract', 'Tracking')[0] >= 0.7 &&
+        if (successChance('contract', 'Tracking')[0] >= 0.6 &&
             successChance('operation', 'Investigation')[0] < 0.8) {
             for (const con of contracts) {
                 await checkCity();
                 await checkBlackOps();
                 await checkAccuracy('contract', con);
-                if (successChance('contract', con)[0] < 0.7) continue;
-                if (!checkWorkCount('contract', con)) continue;
+                if (successChance('contract', con)[0] < 0.6 || !checkWorkCount('contract', con)) continue;
                 await performAction('contract', con, Math.min(10, actionCount('contract', con)));
                 await upgradeSkills();
                 await ns.sleep(10);
@@ -68,8 +67,7 @@ export async function main(ns) {
                 await checkCity();
                 await checkBlackOps();
                 await checkAccuracy('operation', op);
-                if (successChance('operation', op)[0] < 0.8) continue;
-                if (!checkWorkCount('operation', op)) continue;
+                if (successChance('operation', op)[0] < 0.8 || !checkWorkCount('operation', op)) continue;
                 await performAction('operation', op, Math.min(10, actionCount('operation', op)));
                 await upgradeSkills();
                 await ns.sleep(10);

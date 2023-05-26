@@ -27,8 +27,7 @@ export async function main(ns) {
 
     // sort the ratio between time and exp gain of crimes with time <= 60s, best 1st
     const crimes = Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c])
-        .sort((a, b) => compareCrimeStats(b, a))
-        .filter(a => crimeStats(a).time <= 60e3);
+        .sort((a, b) => compareCrimeStats(b, a));
 
     const bladeActions = [
         'Field analysis',
@@ -57,12 +56,16 @@ export async function main(ns) {
         }
     );
     let sleeves = [];
+    let chanceLimit = true;
 
     switch (preset) {
         case 'Idle':
             sleeves = Array(numSleeve()).fill().map(() => ['Idle', null]);
             break;
         case 'Combat':
+            if (await ns.prompt('Limit Crime time to 30 sec?'))
+                crimes.filter(a => crimeStats(a).time <= 30e3);
+            chanceLimit = await ns.prompt('Only select Crimes with chance of 80% or more?');
             sleeves = Array(numSleeve()).fill().map(() => ['Crime', 'combat']);
             break;
         case 'Karma':
@@ -90,9 +93,9 @@ export async function main(ns) {
             let selectedSleeve = await ns.prompt(
                 `${notification}` +
                 `Choose sleeve:\n` +
-                `Confirm -> Confirm task assignments\n` +
-                `Exit/Ignore -> Exit program\n\n` +
-                `'null' -> no change will be made\n` +
+                ` Confirm -> Confirm task assignments\n` +
+                ` Exit/Ignore -> Exit program\n\n` +
+                ` 'null' -> no change will be made\n` +
                 `${getSleevesString()}`,
                 { 'type': 'select', 'choices': [...sleeveIDs, 'Confirm', 'Exit'] }
             );
@@ -146,7 +149,9 @@ export async function main(ns) {
                 break;
             case 'Crime':
                 if (action === 'combat') {
-                    const crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
+                    let crimeTask = null;
+                    if (chanceLimit)
+                        crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
                     setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
                 }
                 if (action === 'karma') {

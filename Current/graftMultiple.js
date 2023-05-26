@@ -215,6 +215,12 @@ export async function main(ns) {
     }
 
     function printAugs() {
-        chosenAugNames.forEach(aug => ns.print(`  > ${graftableAugs.indexOf(aug)}. ${aug} - $${ns.formatNumber(augGraftCost(aug), 1)}`));
+        chosenAugNames.forEach(aug => {
+            const id = graftableAugs.indexOf(aug);
+            ns.print(
+                `  > ${id}. ${aug} - ` +
+                (id < 0 ? `DONE` : `$${ns.formatNumber(augGraftCost(aug), 1)}`)
+            );
+        });
     }
 }
