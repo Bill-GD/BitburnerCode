@@ -1,6 +1,5 @@
-/** Version 2.2
- * All buttons now share the same width
- * Added more features: hack control, clear terminal, grafting
+/** Version 2.2.1
+ * Added more shortcuts: Sleeve and Blade
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -75,6 +74,8 @@ export async function main(ns) {
         manageServers: false,
         graft: false,
         graftMultiple: false,
+        blade: false,
+        sleeve: false,
         runScript: false,
         traveling: false,
         buyRam: false,
@@ -147,12 +148,28 @@ export async function main(ns) {
         hooks.hookStr
     );
 
+    // blade
+    createElement(
+        'button',
+        { innerHTML: 'Blade', style: { color: theme.combat } },
+        'click', () => optionStates.blade = true,
+        hooks.hookDef
+    );
+
+    // sleeve
+    createElement(
+        'button',
+        { innerHTML: 'Sleeve', style: { color: theme.combat } },
+        'click', () => optionStates.sleeve = true,
+        hooks.hookDef
+    );
+
     // run script
     createElement(
         'button',
         { innerHTML: 'Script', style: { color: theme.combat } },
         'click', () => optionStates.runScript = true,
-        hooks.hookDef
+        hooks.hookDex
     );
 
     // traveling
@@ -247,6 +264,14 @@ export async function main(ns) {
             if (optionStates.graftMultiple) {
                 ns.exec('graftMultiple.js', 'home');
                 optionStates.graftMultiple = false;
+            }
+            if (optionStates.blade) {
+                ns.exec('blade_v4.js', 'home');
+                optionStates.blade = false;
+            }
+            if (optionStates.sleeve) {
+                ns.exec('sleeve_v2.js', 'home');
+                optionStates.sleeve = false;
             }
             if (optionStates.runScript) {
                 const file = await ns.prompt(

@@ -1,7 +1,9 @@
-/** Version 4.8
- * Improved Log
- * - Added colors (ANSI)
- * - Improved logging format
+/** Version 4.8.1
+ * Split section and child header color into 2
+ * Color is now RGB color
+ * Now tracks time of current action (with progress bar!)
+ * Log is now updated every second
+ * Reworked how it waits for action to finish (for those 2 features)
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -10,13 +12,14 @@ export async function main(ns) {
     ns.tail();
 
     const colors = {
-        header: getTextColor(118),
-        value: getTextColor(15),
+        section: getANSIRGB_Text(ns.ui.getTheme().money),
+        header: getANSIRGB_Text(ns.ui.getTheme().hp),
+        value: getANSIRGB_Text(ns.ui.getTheme().white),
     };
 
-    const uniChar = {
-        middleChild: '\u251C',
-        lastChild: '\u2514',
+    const listHeaders = {
+        middleChild: `${getANSIRGB_Text(ns.ui.getTheme().hp)}\u251C`,
+        lastChild: `${getANSIRGB_Text(ns.ui.getTheme().hp)}\u2514`,
     }
 
     const blade = ns.bladeburner;
@@ -30,6 +33,7 @@ export async function main(ns) {
     const populationOf = city => blade.getCityEstimatedPopulation(city);
     const currentAction = () => blade.getCurrentAction();
     const actionTime = (type = '', name = '') => blade.getActionTime(type, name);
+    const currentTime = () => blade.getActionCurrentTime();
     const actionCount = (type = '', name = '') => blade.getActionCountRemaining(type, name);
     const requiredSP = skill => blade.getSkillUpgradeCost(skill);
     const cityChaos = (city = '') => blade.getCityChaos(city);
@@ -93,8 +97,7 @@ export async function main(ns) {
 
     function logAction(type = '', name = '', count = 1) {
         // ns.moveTail(1720, 400);
-        const divider = ' ----------------------------------------';
-        ns.resizeTail(divider.length * 10, 710);
+        const divider = ' ---------------------------------------------';
         ns.clearLog();
 
         const city = blade.getCity();
@@ -105,41 +108,51 @@ export async function main(ns) {
         });
         const currentRank = blade.getRank();
         const blackOpRank = blade.getBlackOpRank(currentBlackOp);
+        const rankMet = currentRank > blackOpRank;
+        const taskCount = actionCount(type, name);
+        const totalTime = actionTime(type, name);
+        let lineCount = 20;
 
-        ns.print(` ${colors.header}Current:    ${colors.value}${name} ${count > 1 ? `x${count}` : ''}`);
-        ns.print(`  ${uniChar.middleChild} ${colors.header}Type:    ${colors.value}${type}`);
-        ns.print(`  ${uniChar.middleChild} ${colors.header}Count:   ${colors.value}${actionCount(type, name)}`);
-        ns.print(`  ${uniChar.lastChild} ${colors.header}Stamina: ${colors.value}${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 2)}`);
+        ns.print(` ${colors.section}Current:    ${colors.value}${name} ${count > 1 ? `x${count}` : ''}`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}Type:    ${colors.value}${type}`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}Time:    ${colors.value}${formatTime(currentTime())} / ${formatTime(totalTime)} - ${progressBar(currentTime(), totalTime, 14)}`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}Count:   ${colors.value}${taskCount === Infinity ? '\u221e' : taskCount}`);
+        ns.print(`  ${listHeaders.lastChild} ${colors.header}Stamina: ${colors.value}${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 2)}`);
         ns.print(divider);
 
-        ns.print(` ${colors.header}City: ${colors.value}${city}`);
-        ns.print(`  ${uniChar.middleChild} ${colors.header}Population: ${colors.value}${ns.formatNumber(populationOf(city), 3)}`);
-        ns.print(`  ${uniChar.lastChild} ${colors.header}Chaos:      ${colors.value}${ns.formatNumber(cityChaos(city), 3)}`);
+        ns.print(` ${colors.section}City:${fillWhitespaces(10)}${colors.value}${city}`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}Population: ${colors.value}${ns.formatNumber(populationOf(city), 3)}`);
+        ns.print(`  ${listHeaders.lastChild} ${colors.header}Chaos:      ${colors.value}${ns.formatNumber(cityChaos(city), 3)}`);
         ns.print(divider);
 
-        ns.print(` ${colors.header}Skills`);
-        ns.print(`  ${uniChar.middleChild} ${colors.header}Rank:${getWhiteSpaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}`);
-        ns.print(`  ${uniChar.middleChild} ${colors.header}SP:${getWhiteSpaces(maxSkillWidth - 2)} ${colors.value}${ns.formatNumber(blade.getSkillPoints(), 3)}`);
+        ns.print(` ${colors.section}Skills`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}SP:${fillWhitespaces(maxSkillWidth - 2)} ${colors.value}${ns.formatNumber(blade.getSkillPoints(), 3)}`);
         blade.getSkillNames().forEach((skill, index) => {
-            if (skillLvl(skill) > 0)
+            if (skillLvl(skill) > 0) {
                 ns.print(
-                    (index !== 11 ? `  ${uniChar.middleChild} ` : `  ${uniChar.lastChild} `) +
-                    `${colors.header}${skill}:${getWhiteSpaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(skillLvl(skill), 3)}`
+                    (index !== 11 ? `  ${listHeaders.middleChild} ` : `  ${listHeaders.lastChild} `) +
+                    `${colors.header}${skill}:${fillWhitespaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(skillLvl(skill), 3)}`
                 );
+                lineCount++;
+            }
         });
         ns.print(divider);
 
-        ns.print(` ${colors.header}Chances`);
-        ns.print(`  ${uniChar.middleChild} ${colors.header}Avg. Contract:  ${colors.value}${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
-        ns.print(`  ${uniChar.lastChild} ${colors.header}Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('operation', operations), 2)}`);
+        ns.print(` ${colors.section}Chances`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}Avg. Contract:  ${colors.value}${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
+        ns.print(`  ${listHeaders.lastChild} ${colors.header}Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('operation', operations), 2)}`);
         ns.print(divider);
 
-        ns.print(` ${colors.header}Black Op:  ${colors.value}${currentBlackOp}`);
-        ns.print(`  ${uniChar.middleChild} ${colors.header}Chance: ${colors.value}${ns.formatPercent(successChance('black op', currentBlackOp)[0], 2)}`);
-        ns.print(`  ${uniChar.lastChild} ${colors.header}Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} (${ns.formatPercent(currentRank / blackOpRank)})`);
+        ns.print(` ${colors.section}Black Op:  ${colors.value}${currentBlackOp}`);
+        ns.print(`  ${listHeaders.middleChild} ${colors.header}Chance: ${colors.value}${ns.formatPercent(successChance('black op', currentBlackOp)[0], 2)}`);
+        ns.print(`  ${listHeaders.lastChild} ${colors.header}Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} -` +
+            ` ${rankMet ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRank)}`);
+
+        ns.resizeTail((divider.length - 1) * 10, lineCount * 25 + 30);
     }
 
-    /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code) */
+    /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code). */
     async function checkCity() {
         let citiesCopy = cities.slice();
 
@@ -155,7 +168,7 @@ export async function main(ns) {
 
     /** Loosely estimated average success chance of the specified ```city```.
      * 
-     * Since this is hardcoded and there's no way to dynamically calculate them (Bitburner doesn't provide any way to get ```weights``` and ```decays```), this CAN break if source changes.
+     * Since this is hardcoded and there's no way to dynamically calculate them (Bitburner doesn't provide any way to get ```weight``` and ```decay```), this CAN break if the source changes.
      * @formula ```chance = competence / difficulty```
      * @see https://github.com/bitburner-official/bitburner-src/blob/dev/src/Bladeburner/Action.tsx#L239
     */
@@ -225,8 +238,14 @@ export async function main(ns) {
         if (type === 'general' || type === 'contract' || type === 'operation' || type === 'black op') {
             for (let i = 0; i < count; i++) {
                 if (blade.startAction(type, action)) {
-                    logAction(currentAction().type, currentAction().name, i + 1);
-                    await ns.sleep(Math.max(1, Math.ceil((actionTime(type, action) / 1e3) / (blade.getBonusTime() > 1e3 ? 5 : 1))) * 1e3);
+                    const totalTime = Math.max(1, Math.ceil((actionTime(type, action) / 1e3) / (blade.getBonusTime() > 1e3 ? 5 : 1))) * 1e3;
+                    let current = currentTime();
+                    while (current < totalTime) {
+                        await ns.sleep(1e3);
+                        logAction(currentAction().type, currentAction().name, i + 1);
+                        current = currentTime();
+                        if (current === 0) break;
+                    }
                 }
                 else i--;
             }
@@ -292,7 +311,7 @@ export async function main(ns) {
         }
     }
 
-    /** Perform the current black op if ```chance === 100%``` and ```rank``` is sufficient */
+    /** Perform the current black op if ```chance === 100%``` and ```rank``` is sufficient. */
     async function checkBlackOps() {
         while (true) {
             if (currentBlackOp === '') { // Daedalus is done
@@ -336,19 +355,49 @@ export async function main(ns) {
         return chance / tasks.length;
     }
 
-    /**
-     * 
-     * @param {number} colorID color id of ANSI color (8-bit)
+    /** Convert ```RGB``` colors to ```ANSI``` color, default is ```#ffffff```. This color is used for text (foreground).
+     * @param {string} colorHex color in hex format
      * @returns ```Unicode``` string for the color
      */
-    function getTextColor(colorID = 0) {
-        return `\u001b[38;5;${colorID}m`;
+    function getANSIRGB_Text(colorHex = '#ffffff') {
+        if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
+        const r = parseInt(colorHex.substring(1, 3), 16);
+        const g = parseInt(colorHex.substring(3, 5), 16);
+        const b = parseInt(colorHex.substring(5, 7), 16);
+        return `\u001b[38;2;${r};${g};${b}m`;
     }
 
-    function getWhiteSpaces(count = 0) {
+    function fillWhitespaces(count = 0) {
         let whiteSpaces = '';
         for (let i = 0; i < count; i++)
             whiteSpaces += ' ';
         return whiteSpaces;
+    }
+
+    /** Convert time in milliseconds to ```string``` representation.
+     * @param {number} time The time in milliseconds
+     * @return {string} The formatted time: ```mm:ss```
+     */
+    function formatTime(time = 0) {
+        let min = Math.trunc(time / 6e4);
+        let sec = Math.trunc(time % 6e4) / 1e3;
+        sec = sec < 10 ? '0' + sec : sec;
+        min = min < 10 ? '0' + min : min;
+        return `${min}:${sec}`;
+    }
+
+    /** Return a ```string``` representation of progress as a bar.
+     * @param {number} currentProgress The current progress
+     * @param {number} fullProgress Equals to ```100%``` of the progress
+     * @param {number} maxChar The number of characters the progress bar should display, excluding the brackets ```[]```
+     * @returns The progress bar as a ```string```
+     */
+    function progressBar(currentProgress, fullProgress, maxChar = 10) {
+        const progressPerChar = fullProgress / maxChar;
+        const progressChar = Math.trunc(currentProgress / progressPerChar);
+        let p = '[';
+        for (let i = 0; i < maxChar; i++)
+            i < progressChar ? p += '\u2588' : p += ' ';
+        return p + ']';
     }
 }

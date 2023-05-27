@@ -4,7 +4,7 @@ export async function main(ns) {
     ns.tail();
 
     while (true) {
-        const portExe = ['BruteSSH.exe', 'FTPCrack.exe', 'RelaySMTP.exe', 'HTTPWorm.exe', 'SQLInject.exe'];
+        const portExe = ['BruteSSH.exe', 'FTPCrack.exe', 'relaySMTP.exe', 'HTTPWorm.exe', 'SQLInject.exe'];
         let ownedExe = 0;
         for (const p of portExe) {
             if (!ns.fileExists(p, 'home')) {
@@ -26,12 +26,12 @@ export async function main(ns) {
                     await ns.sleep(50);
                 }
             }
-            if (ns.fileExists(p, 'home')) {
+            if (ns.fileExists(p, 'home'))
                 ownedExe++;
-                ns.print(`Spreading latest 'hackScript.js'`);
-                ns.run('spreadHack.js');
-            }
         }
+
+        ns.print(`Spreading latest 'hackScript.js'`);
+        ns.run('spreadHack.js');
 
         if (ownedExe === 5) {
             ns.print('Got all exe. Exiting...');

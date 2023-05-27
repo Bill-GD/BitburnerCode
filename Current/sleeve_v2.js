@@ -1,11 +1,23 @@
-/** Version 2.2.4
- * Now updates every second if all is Idling
- * Task and time logging is now in the same function
+/** Version 2.3
+ * Now has the new logging colors & format
+ * Now has dynamic height
+ * Now updates log every 10 seconds
  */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
     ns.tail();
+
+    const colors = {
+        section: getTextANSI_RGB(ns.ui.getTheme().money),
+        header: getTextANSI_RGB(ns.ui.getTheme().hp),
+        value: getTextANSI_RGB(ns.ui.getTheme().white),
+    };
+
+    const listHeaders = {
+        middleChild: `${getTextANSI_RGB(ns.ui.getTheme().hp)}\u251C`,
+        lastChild: `${getTextANSI_RGB(ns.ui.getTheme().hp)}\u2514`,
+    }
 
     const sl = ns.sleeve;
 
@@ -184,33 +196,44 @@ export async function main(ns) {
         });
 
         logTask();
-        await ns.sleep(isAllIdle ? 1e3 : 600e3);
+        await ns.sleep(10e3);
     }
 
     function logTask() {
         let maxWidth = 0;
+        let lineCount = 0;
         ns.clearLog();
         for (let id = 0; id < numSleeve(); id++) {
             let task = sl.getTask(id);
-            if (!task) task = `Idle (${ns.formatNumber(getSleeve(id).storedCycles, 3)})`;
+            if (!task) task = `Idle`;
             else
                 switch (task.type.toLowerCase()) {
                     case 'bladeburner':
                         task = task.actionName;
                         break;
                     case 'recovery':
-                        task = 'Recovery (' + ns.formatNumber(getSleeve(id).shock, 2) + ')';
+                        task = 'Recovery (' + ns.formatNumber(getSleeve(id).shock, 3) + ')';
                         break;
                     case 'crime':
-                        task = task.crimeType + ' (' + ns.formatPercent(crimeChance(id, task.crimeType), 1) + ')';
+                        task = task.crimeType + ' (' + ns.formatPercent(crimeChance(id, task.crimeType), 2) + ')';
                         break;
                     default:
                         task = task.type[0] + task.type.substring(1).toLowerCase();
                         break;
                 }
-            const taskStr = ` #${id} (aug=${sl.getSleeveAugmentations(id).length}): ${task}`;
-            maxWidth = Math.max(maxWidth, taskStr.length);
-            ns.print(taskStr);
+            let nameStr = ` Sleeve-${id}`;
+            let taskStr = `  f Task:      ${task}`;
+            let cycles = `  f Cycles:    ${ns.formatNumber(getSleeve(id).storedCycles, 3)}`;
+            let augStr = `  f Aug.Count: ${sl.getSleeveAugmentations(id).length} `;
+
+            maxWidth = Math.max(maxWidth, taskStr.length, nameStr.length, augStr.length, cycles.length);
+
+            nameStr = ` ${colors.section}Sleeve-${id}`;
+            taskStr = `  ${colors.header}${listHeaders.middleChild} Task:      ${colors.value}${task}`;
+            cycles = `  ${colors.header}${listHeaders.middleChild} Cycles:    ${colors.value}${ns.formatNumber(getSleeve(id).storedCycles, 3)}`;
+            augStr = `  ${colors.header}${listHeaders.lastChild} Aug.Count: ${colors.value}${sl.getSleeveAugmentations(id).length} `;
+            ns.print(`${nameStr} \n${taskStr} \n${cycles} \n${augStr} `);
+            lineCount += 4;
         }
 
         const time = new Date();
@@ -219,7 +242,7 @@ export async function main(ns) {
             `${time.getDate()}/${time.getMonth() + 1}` +
             ` ${time.getHours() < 10 ? '0' : ''}${time.getHours()}:${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}`
         );
-        ns.resizeTail(Math.max(250, maxWidth * 10), 280);
+        ns.resizeTail(Math.max(250, maxWidth * 10), (lineCount + 1) * 25 + 30);
     }
 
     /** @return
@@ -260,5 +283,13 @@ export async function main(ns) {
         let string = '';
         sleeves.forEach(([type, action], id) => string += `${id}: ${type} - ${action}\n`);
         return string;
+    }
+
+    function getTextANSI_RGB(colorHex = '#ffffff') {
+        if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
+        var r = parseInt(colorHex.substring(1, 3), 16);
+        var g = parseInt(colorHex.substring(3, 5), 16);
+        var b = parseInt(colorHex.substring(5, 7), 16);
+        return `\u001b[38;2;${r};${g};${b}m`;
     }
 }
