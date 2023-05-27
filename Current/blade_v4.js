@@ -1,11 +1,23 @@
-/** Version 4.7.3
- * Removed limit for Hyperdrive skill
+/** Version 4.8
+ * Improved Log
+ * - Added colors (ANSI)
+ * - Improved logging format
  */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
     ns.clearLog();
     ns.tail();
+
+    const colors = {
+        header: getTextColor(118),
+        value: getTextColor(15),
+    };
+
+    const uniChar = {
+        middleChild: '\u251C',
+        lastChild: '\u2514',
+    }
 
     const blade = ns.bladeburner;
 
@@ -80,22 +92,51 @@ export async function main(ns) {
     }
 
     function logAction(type = '', name = '', count = 1) {
-        ns.moveTail(1655, 815);
-        ns.resizeTail(460, 230);
-        const city = blade.getCity();
+        // ns.moveTail(1720, 400);
+        const divider = ' ----------------------------------------';
+        ns.resizeTail(divider.length * 10, 710);
         ns.clearLog();
-        ns.print(
-            ` Avg. Contract: ${ns.formatPercent(averageTaskChance('contract', contracts), 2)}` +
-            `, Avg. Operation: ${ns.formatPercent(averageTaskChance('operation', operations), 2)}\n` +
-            (currentBlackOp !== '' ? ` ${currentBlackOp}: ${ns.formatPercent(successChance('black op', currentBlackOp)[0], 2)}` : '')
-        );
-        ns.printf(` Current action: ${type}\n > ${name}${count > 1 ? ` x${count}` : ''}`);
-        ns.printf(' ----------------------------------');
-        ns.printf(
-            ` Rank: ${ns.formatNumber(blade.getRank(), 3)} / ${ns.formatNumber(blade.getBlackOpRank(currentBlackOp), 3)}` +
-            `, SP: ${ns.formatNumber(blade.getSkillPoints(), 3)}`);
-        ns.printf(` Stamina: ${ns.formatNumber(blade.getStamina()[0], 3)} / ${ns.formatNumber(blade.getStamina()[1], 3)}`);
-        ns.printf(` City: ${city}, Chaos: ${ns.formatNumber(cityChaos(city), 3)}, Pop: ${ns.formatNumber(populationOf(city), 3)}`);
+
+        const city = blade.getCity();
+        let maxSkillWidth = 0;
+        blade.getSkillNames().forEach(skill => {
+            if (skillLvl(skill) > 0)
+                maxSkillWidth = Math.max(maxSkillWidth, skill.length);
+        });
+        const currentRank = blade.getRank();
+        const blackOpRank = blade.getBlackOpRank(currentBlackOp);
+
+        ns.print(` ${colors.header}Current:    ${colors.value}${name} ${count > 1 ? `x${count}` : ''}`);
+        ns.print(`  ${uniChar.middleChild} ${colors.header}Type:    ${colors.value}${type}`);
+        ns.print(`  ${uniChar.middleChild} ${colors.header}Count:   ${colors.value}${actionCount(type, name)}`);
+        ns.print(`  ${uniChar.lastChild} ${colors.header}Stamina: ${colors.value}${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 2)}`);
+        ns.print(divider);
+
+        ns.print(` ${colors.header}City: ${colors.value}${city}`);
+        ns.print(`  ${uniChar.middleChild} ${colors.header}Population: ${colors.value}${ns.formatNumber(populationOf(city), 3)}`);
+        ns.print(`  ${uniChar.lastChild} ${colors.header}Chaos:      ${colors.value}${ns.formatNumber(cityChaos(city), 3)}`);
+        ns.print(divider);
+
+        ns.print(` ${colors.header}Skills`);
+        ns.print(`  ${uniChar.middleChild} ${colors.header}Rank:${getWhiteSpaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}`);
+        ns.print(`  ${uniChar.middleChild} ${colors.header}SP:${getWhiteSpaces(maxSkillWidth - 2)} ${colors.value}${ns.formatNumber(blade.getSkillPoints(), 3)}`);
+        blade.getSkillNames().forEach((skill, index) => {
+            if (skillLvl(skill) > 0)
+                ns.print(
+                    (index !== 11 ? `  ${uniChar.middleChild} ` : `  ${uniChar.lastChild} `) +
+                    `${colors.header}${skill}:${getWhiteSpaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(skillLvl(skill), 3)}`
+                );
+        });
+        ns.print(divider);
+
+        ns.print(` ${colors.header}Chances`);
+        ns.print(`  ${uniChar.middleChild} ${colors.header}Avg. Contract:  ${colors.value}${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
+        ns.print(`  ${uniChar.lastChild} ${colors.header}Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('operation', operations), 2)}`);
+        ns.print(divider);
+
+        ns.print(` ${colors.header}Black Op:  ${colors.value}${currentBlackOp}`);
+        ns.print(`  ${uniChar.middleChild} ${colors.header}Chance: ${colors.value}${ns.formatPercent(successChance('black op', currentBlackOp)[0], 2)}`);
+        ns.print(`  ${uniChar.lastChild} ${colors.header}Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} (${ns.formatPercent(currentRank / blackOpRank)})`);
     }
 
     /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code) */
@@ -220,7 +261,6 @@ export async function main(ns) {
         while (blade.getSkillPoints() >= requiredSP(chosenSkills[0])) {
             if (chosenSkills[0] === 'Overclock' && skillLvl(chosenSkills[0]) >= 90)
                 chosenSkills.splice(0, 1);
-            logAction('Upgrade Skill', chosenSkills[0]);
             blade.upgradeSkill(chosenSkills[0]);
             chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
             await ns.sleep(10);
@@ -294,5 +334,21 @@ export async function main(ns) {
         let chance = 0;
         tasks.forEach(t => chance += successChance(type, t)[0]);
         return chance / tasks.length;
+    }
+
+    /**
+     * 
+     * @param {number} colorID color id of ANSI color (8-bit)
+     * @returns ```Unicode``` string for the color
+     */
+    function getTextColor(colorID = 0) {
+        return `\u001b[38;5;${colorID}m`;
+    }
+
+    function getWhiteSpaces(count = 0) {
+        let whiteSpaces = '';
+        for (let i = 0; i < count; i++)
+            whiteSpaces += ' ';
+        return whiteSpaces;
     }
 }
