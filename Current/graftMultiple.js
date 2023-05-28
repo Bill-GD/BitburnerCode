@@ -1,8 +1,6 @@
-/** Version 2.4
- * Now has dynamic log width
- * Added options for adding and removing augs in the queue with invalid ID filtering
- * Improved ID check for new queue
- * Order of grafting is now reversed (graft most useful first)
+/** Version 2.4.1
+ * Reverts the update to update aug list along side with the grafting (Shows grafted aug)
+ * -> May re-add if found a better implementation
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -14,7 +12,6 @@ export async function main(ns) {
     const graft = ns.grafting;
     const augGraftCost = aug => graft.getAugmentationGraftPrice(aug);
     const graftTime = aug => graft.getAugmentationGraftTime(aug);
-    const getPrereq = aug => ns.singularity.getAugmentationPrereq(aug);
     const getOwned = () => ns.singularity.getOwnedAugmentations();
 
     const graftableAugs = graft.getGraftableAugmentations();
@@ -25,7 +22,11 @@ export async function main(ns) {
     if (chosenAugNames.length > 1) {
         ns.tail();
         ns.print(' Current queue:');
-        printAugs();
+        chosenAugNames.forEach(aug => {
+            const id = graftableAugs.indexOf(aug);
+            if (id < 0) return;
+            ns.print(`  > ${id}. ${aug} - $${ns.formatNumber(augGraftCost(aug), 2)}`);
+        });
     }
 
     let option;
@@ -34,47 +35,48 @@ export async function main(ns) {
             `There's a queue with ${chosenAugNames.length} aug(s).\n\nIgnore to use the current queue\nor\nChoose one of the options below.`,
             { 'type': 'select', 'choices': ['Reset', 'Add', 'Remove'] }
         );
-
-        let chosenAugIDs = chosenAugNames.map(aug => graftableAugs.findIndex(a => a === aug));
-        if (option === 'Add') {
-            const stringID = (await ns.prompt(
-                'Current list of IDs -> check tail\n\n' +
-                'IDs to add (separated by spaces):',
-                { 'type': 'text' }
-            ))
-                .split(' ')
-                .filter(id => !isNaN(parseInt(id)) && id < graftableAugs.length)
-                .map(id => parseInt(id));
-            chosenAugIDs = [...new Set(
-                [...chosenAugIDs, ...stringID]
-                    .map(id => parseInt(id))
-                    .sort((a, b) => b - a)
-            )];
-        }
-
-        if (option === 'Remove') {
-            [... new Set(
-                (await ns.prompt(
+        if (option !== 'Reset') {
+            let chosenAugIDs = chosenAugNames.map(aug => graftableAugs.findIndex(a => a === aug));
+            if (option === 'Add') {
+                const stringID = (await ns.prompt(
                     'Current list of IDs -> check tail\n\n' +
-                    'IDs to remove:',
+                    'IDs to add (separated by spaces):',
                     { 'type': 'text' }
                 ))
                     .split(' ')
-                    .filter(id => id !== '')
-            )]
-                .forEach(id => {
-                    if (chosenAugIDs.includes(parseInt(id)))
-                        chosenAugIDs.splice(chosenAugIDs.indexOf(parseInt(id)), 1);
-                });
-            if ([0, 1].includes(chosenAugIDs.length))
-                ns.write(fileName, '', 'w');
-            chosenAugIDs = chosenAugIDs
-                .map(id => parseInt(id))
-                .sort((a, b) => b - a);
-        }
+                    .filter(id => !isNaN(parseInt(id)) && id < graftableAugs.length)
+                    .map(id => parseInt(id));
+                chosenAugIDs = [...new Set(
+                    [...chosenAugIDs, ...stringID]
+                        .map(id => parseInt(id))
+                        .sort((a, b) => b - a)
+                )];
+            }
 
-        chosenAugNames = chosenAugIDs.map((id) => graftableAugs[id]);
-        chosenAugNames = chosenAugNames.filter(aug => checkPrereq(aug));
+            if (option === 'Remove') {
+                [... new Set(
+                    (await ns.prompt(
+                        'Current list of IDs -> check tail\n\n' +
+                        'IDs to remove:',
+                        { 'type': 'text' }
+                    ))
+                        .split(' ')
+                        .filter(id => id !== '')
+                )]
+                    .forEach(id => {
+                        if (chosenAugIDs.includes(parseInt(id)))
+                            chosenAugIDs.splice(chosenAugIDs.indexOf(parseInt(id)), 1);
+                    });
+                if ([0, 1].includes(chosenAugIDs.length))
+                    ns.write(fileName, '', 'w');
+                chosenAugIDs = chosenAugIDs
+                    .map(id => parseInt(id))
+                    .sort((a, b) => b - a);
+            }
+
+            chosenAugNames = chosenAugIDs.map((id) => graftableAugs[id]);
+            chosenAugNames = chosenAugNames.filter(aug => checkPrereq(aug));
+        }
     }
 
     if (chosenAugNames[0] === '' || option === 'Reset') {
@@ -102,6 +104,7 @@ export async function main(ns) {
             ns.alert('NO Augmentations were chosen');
             break;
         case 1:
+            ns.write(fileName, '', 'w');
             if (!(await ns.prompt(`Grafting confirmation for: ${chosenAugNames[0]}`)))
                 break;
             ns.run('graft.js', 1, '--script', '--chosenAugName', chosenAugNames[0]);
@@ -126,7 +129,7 @@ export async function main(ns) {
                 const cost = augGraftCost(aug);
                 totalCost += cost;
                 totalTime += graftTime(aug);
-                const augLine = `  > ${graftableAugs.indexOf(aug)}. ${aug} - $${ns.formatNumber(cost, 1)}`;
+                const augLine = `  > ${graftableAugs.indexOf(aug)}. ${aug} - $${ns.formatNumber(cost, 2)}`;
                 maxWidth = Math.max(maxWidth, augLine.length);
                 menuText += augLine + '\n';
                 lineCount++;
@@ -178,8 +181,7 @@ export async function main(ns) {
 
                 ns.clearLog();
                 let timeToGraft = graftTime(aug);
-                ns.printf(topTitle);
-                printAugs();
+                ns.printf(menuText);
                 ns.printf(`\n Grafting-${chosenAugNames.findIndex(a => a === aug) + 1}:\n  > ${aug}\n  > ${ns.tFormat(timeToGraft)}`);
                 ns.printf(`\n${timeNotification}`);
 
@@ -193,7 +195,8 @@ export async function main(ns) {
 
     /** @return ```true``` if all prerequisites are grafted or chosen to be grafted in the right order, ```false``` otherwise. */
     function checkPrereq(augName) {
-        const prereqs = getPrereq(augName);
+        if (!graftableAugs.includes(augName)) return false;
+        const prereqs = ns.singularity.getAugmentationPrereq(augName);
         if (prereqs.length === 0) return true;
 
         let checked = false;
@@ -212,15 +215,5 @@ export async function main(ns) {
             }
         });
         return result;
-    }
-
-    function printAugs() {
-        chosenAugNames.forEach(aug => {
-            const id = graftableAugs.indexOf(aug);
-            ns.print(
-                `  > ${id}. ${aug} - ` +
-                (id < 0 ? `DONE` : `$${ns.formatNumber(augGraftCost(aug), 1)}`)
-            );
-        });
     }
 }

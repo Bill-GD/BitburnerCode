@@ -1,7 +1,5 @@
-/** Version 2.3
- * Now has the new logging colors & format
- * Now has dynamic height
- * Now updates log every 10 seconds
+/** Version 2.3.1
+ * Slightly modified the layout of the log (shorter vertically)
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -15,6 +13,7 @@ export async function main(ns) {
     };
 
     const listHeaders = {
+        topChild: `${getTextANSI_RGB(ns.ui.getTheme().hp)}\u252C`,
         middleChild: `${getTextANSI_RGB(ns.ui.getTheme().hp)}\u251C`,
         lastChild: `${getTextANSI_RGB(ns.ui.getTheme().hp)}\u2514`,
     }
@@ -148,7 +147,9 @@ export async function main(ns) {
                     );
                     if (chosenAction !== '') sleeves[selectedSleeve][1] = chosenAction;
                 }
+                await ns.sleep(10);
             }
+            await ns.sleep(10);
         }
     }
 
@@ -221,19 +222,17 @@ export async function main(ns) {
                         task = task.type[0] + task.type.substring(1).toLowerCase();
                         break;
                 }
-            let nameStr = ` Sleeve-${id}`;
-            let taskStr = `  f Task:      ${task}`;
-            let cycles = `  f Cycles:    ${ns.formatNumber(getSleeve(id).storedCycles, 3)}`;
-            let augStr = `  f Aug.Count: ${sl.getSleeveAugmentations(id).length} `;
+            let nameStr = ` Sleeve-${id} f Task:      ${task}`;
+            let cycles = `          f Cycles:    ${ns.formatNumber(getSleeve(id).storedCycles, 3)}`;
+            let augStr = `          f Aug.Count: ${sl.getSleeveAugmentations(id).length} `;
 
-            maxWidth = Math.max(maxWidth, taskStr.length, nameStr.length, augStr.length, cycles.length);
+            maxWidth = Math.max(maxWidth, nameStr.length, augStr.length, cycles.length);
 
-            nameStr = ` ${colors.section}Sleeve-${id}`;
-            taskStr = `  ${colors.header}${listHeaders.middleChild} Task:      ${colors.value}${task}`;
-            cycles = `  ${colors.header}${listHeaders.middleChild} Cycles:    ${colors.value}${ns.formatNumber(getSleeve(id).storedCycles, 3)}`;
-            augStr = `  ${colors.header}${listHeaders.lastChild} Aug.Count: ${colors.value}${sl.getSleeveAugmentations(id).length} `;
-            ns.print(`${nameStr} \n${taskStr} \n${cycles} \n${augStr} `);
-            lineCount += 4;
+            nameStr = ` ${colors.section}Sleeve-${id} ${colors.header}${listHeaders.topChild} Task:      ${colors.value}${task}`;
+            cycles = `          ${colors.header}${listHeaders.middleChild} Cycles:    ${colors.value}${ns.formatNumber(getSleeve(id).storedCycles, 3)}`;
+            augStr = `          ${colors.header}${listHeaders.lastChild} Aug.Count: ${colors.value}${sl.getSleeveAugmentations(id).length} `;
+            ns.print(`${nameStr} \n${cycles} \n${augStr} `);
+            lineCount += 3;
         }
 
         const time = new Date();
@@ -242,7 +241,7 @@ export async function main(ns) {
             `${time.getDate()}/${time.getMonth() + 1}` +
             ` ${time.getHours() < 10 ? '0' : ''}${time.getHours()}:${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}`
         );
-        ns.resizeTail(Math.max(250, maxWidth * 10), (lineCount + 1) * 25 + 30);
+        ns.resizeTail(Math.max(250, maxWidth * 10), (lineCount + 1) * 25 + 35);
     }
 
     /** @return

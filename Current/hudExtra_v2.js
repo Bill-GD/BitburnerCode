@@ -1,5 +1,5 @@
-/** Version 2.2.1
- * Added more shortcuts: Sleeve and Blade
+/** Version 2.2.2
+ * Added shortcut: BitNode money report
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -79,6 +79,7 @@ export async function main(ns) {
         runScript: false,
         traveling: false,
         buyRam: false,
+        reportMoney: false,
         clearTerminal: false,
         hudRestart: false,
         hudExit: false,
@@ -186,6 +187,14 @@ export async function main(ns) {
         { innerHTML: 'RAM', style: { color: theme.cha } },
         'click', () => optionStates.buyRam = true,
         hooks.hookCha
+    );
+
+    // money report
+    createElement(
+        'button',
+        { innerHTML: 'Report', style: { color: theme.int } },
+        'click', () => optionStates.reportMoney = true,
+        hooks.hookInt
     );
 
     // cls;ls
@@ -296,6 +305,10 @@ export async function main(ns) {
             if (optionStates.buyRam) {
                 ns.exec('homeUpgrade.js', 'home');
                 optionStates.buyRam = false;
+            }
+            if (optionStates.reportMoney) {
+                ns.exec('getMoneyReport.js', 'home');
+                optionStates.reportMoney = false;
             }
             if (optionStates.hudRestart) ns.exec('restart.js', 'home', 1, 'hudExtra_v2.js');
             if (optionStates.hudExit) ns.exit();
