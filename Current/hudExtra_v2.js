@@ -1,5 +1,5 @@
-/** Version 2.2.2
- * Added shortcut: BitNode money report
+/** Version 2.2.3
+ * Added shorcut: Join Bladeburner
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -75,6 +75,7 @@ export async function main(ns) {
         graft: false,
         graftMultiple: false,
         blade: false,
+        joinBlade: false,
         sleeve: false,
         runScript: false,
         traveling: false,
@@ -157,12 +158,19 @@ export async function main(ns) {
         hooks.hookDef
     );
 
+    createElement(
+        'button',
+        { innerHTML: 'Join', style: { color: theme.combat } },
+        'click', () => optionStates.joinBlade = true,
+        hooks.hookDef
+    );
+
     // sleeve
     createElement(
         'button',
         { innerHTML: 'Sleeve', style: { color: theme.combat } },
         'click', () => optionStates.sleeve = true,
-        hooks.hookDef
+        hooks.hookDex
     );
 
     // run script
@@ -277,6 +285,10 @@ export async function main(ns) {
             if (optionStates.blade) {
                 ns.exec('blade_v4.js', 'home');
                 optionStates.blade = false;
+            }
+            if (optionStates.joinBlade) {
+                ns.exec('joinBlade.js', 'home');
+                optionStates.joinBlade = false;
             }
             if (optionStates.sleeve) {
                 ns.exec('sleeve_v2.js', 'home');

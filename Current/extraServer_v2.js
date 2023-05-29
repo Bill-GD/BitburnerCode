@@ -1,11 +1,14 @@
-/** Version 2.0
- * Considered 2.0 since version history is lost
- * No longer uses ns.flags
- * Changed how it handles Upgrading Servers
- * RAM & server limit are now dynamic and correspond to the current BitNode restrictions
+/** Version 2.0.1
+ * Notifies if the current BitNode does not allow purchased servers
  */
 /** @param {NS} ns */
 export async function main(ns) {
+    const serverLimit = Math.round(25 * ns.getBitNodeMultipliers().PurchasedServerLimit);
+    if (serverLimit === 0) {
+        ns.alert('Purchased servers are not available in this BitNode');
+        ns.exit();
+    }
+
     const playerMoney = () => ns.getServerMoneyAvailable('home');
     const maxRamOf = server => ns.getServerMaxRam(server);
     const serverCost = ram => ns.getPurchasedServerCost(ram);
@@ -80,15 +83,13 @@ export async function main(ns) {
     }
 
     if (option === 'purchase') {
-        const serverLimit = Math.round(25 * ns.getBitNodeMultipliers().PurchasedServerLimit);
-
         if (boughtServers.length >= serverLimit) {
             ns.alert(`(!) Already bought all ${serverLimit} servers (!)`);
             ns.exit();
         }
 
         const option = ['Buy One', 'Buy n', 'Buy Max'];
-        const choice = await ns.prompt('Choose purchase quantity:', { 'type': 'select', 'choices': option });
+        const choice = await ns.prompt(`Amount allowed in this BitNode: ${serverLimit}\nChoose purchase quantity:`, { 'type': 'select', 'choices': option });
         const ramChoice = await ns.prompt('Choose RAM for server:', { 'type': 'select', 'choices': ramChoices });
 
         switch (choice) {

@@ -1,20 +1,13 @@
-/** Version 4.9
- * Removed the Bladeburner joining feature -> reduce RAM usage
- * Shows the success chance of the current action
- * Shows the SP required to upgrade skills
- * Fixed the new action loop (it prevents finishing the current action)
- * Reworked the action handling
- * - Contract: Now loop in reverse (last -> first)
- * - Operation: Now only select the best op
- * - Black Op: Check right after every action
- * Skills upgrading is now after every action
- * Actually remove the limit for Hyperdrive now
+/** Version 4.9.1
+ * Shortened some colors code
+ * Fixed some minor UI inconsistencies
  */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
     ns.clearLog();
     ns.tail();
+
 
     const chanceLimits = {
         contract: 0.6,
@@ -29,11 +22,18 @@ export async function main(ns) {
     };
 
     const listHeaders = {
-        middleChild: `${getANSIRGB_Text(ns.ui.getTheme().hp)}\u251C`,
-        lastChild: `${getANSIRGB_Text(ns.ui.getTheme().hp)}\u2514`,
+        middleChild: `${colors.header}\u251C`,
+        lastChild: `${colors.header}\u2514`,
     }
 
     const blade = ns.bladeburner;
+
+    try {
+        blade.getContractNames();
+    } catch (error) {
+        ns.alert(`Haven't joined Bladeburner yet\n`);
+        ns.exit();
+    }
 
     // shortened function
     const player = () => ns.getPlayer();
@@ -62,36 +62,32 @@ export async function main(ns) {
     let currentBlackOp = getCurrentBlackOp();
     let bestOp = getBestOp();
 
-    try {
-        while (await ns.sleep(10)) {
-            // general
-            await checkCity();
-            await performAction('general', 'Training');
-            await performAction('general', 'Field Analysis');
-            await regulateChaos();
+    while (await ns.sleep(10)) {
+        // general
+        await checkCity();
+        await performAction('general', 'Training');
+        await performAction('general', 'Field Analysis');
+        await regulateChaos();
 
-            // contracts
-            await checkAccuracy('contract', 'Tracking');
-            if (successChance('contract', 'Tracking')[0] >= chanceLimits.contract &&
-                successChance('operation', 'Investigation')[0] < chanceLimits.operation) {
-                for (const con of contracts) {
-                    await checkCity();
-                    await checkAccuracy('contract', con);
-                    if (successChance('contract', con)[0] < chanceLimits.contract || !checkWorkCount('contract', con)) continue;
-                    await performAction('contract', con, Math.min(10, actionCount('contract', con)));
-                    await ns.sleep(10);
-                }
-                await regulateChaos();
-            }
-
-            if (bestOp !== '') {
+        // contracts
+        await checkAccuracy('contract', 'Tracking');
+        if (successChance('contract', 'Tracking')[0] >= chanceLimits.contract &&
+            successChance('operation', 'Investigation')[0] < chanceLimits.operation) {
+            for (const con of contracts) {
                 await checkCity();
-                await performAction('operation', bestOp, Math.trunc(Math.random() * 8 + 8)); // 8-15
-                bestOp = getBestOp();
+                await checkAccuracy('contract', con);
+                if (successChance('contract', con)[0] < chanceLimits.contract || !checkWorkCount('contract', con)) continue;
+                await performAction('contract', con, Math.min(10, actionCount('contract', con)));
+                await ns.sleep(10);
             }
+            await regulateChaos();
         }
-    } catch (error) {
-        ns.alert(error);
+
+        if (bestOp !== '') {
+            await checkCity();
+            await performAction('operation', bestOp, Math.trunc(Math.random() * 8 + 8)); // 8-15
+            bestOp = getBestOp();
+        }
     }
 
     function logAction(type = '', name = '', count = 1, maxCount = 1) {
@@ -100,9 +96,12 @@ export async function main(ns) {
 
         const city = blade.getCity();
         let maxSkillWidth = 0;
+        let skillCount = 0;
         blade.getSkillNames().forEach(skill => {
-            if (skillLvl(skill) > 0)
+            if (skillLvl(skill) > 0) {
                 maxSkillWidth = Math.max(maxSkillWidth, skill.length);
+                skillCount++;
+            }
         });
         const currentRank = blade.getRank();
         const blackOpRank = blade.getBlackOpRank(currentBlackOp);
@@ -112,27 +111,27 @@ export async function main(ns) {
         let lineCount = 21;
 
         ns.print(` ${colors.section}Current:    ${colors.value}${name} - ${count} / ${maxCount}`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Type:    ${colors.value}${type}`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Chance:  ${colors.value}${ns.formatPercent(successChance(type, name)[0], 2)}`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Time:    ${colors.value}${formatTime(currentTime())} / ${formatTime(totalTime)} - ${progressBar(currentTime(), totalTime, 17)}`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Count:   ${colors.value}${taskCount === Infinity ? '\u221e' : taskCount}`);
-        ns.print(`  ${listHeaders.lastChild} ${colors.header}Stamina: ${colors.value}${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 2)}`);
+        ns.print(`  ${listHeaders.middleChild} Type:    ${colors.value}${type}`);
+        ns.print(`  ${listHeaders.middleChild} Chance:  ${colors.value}${ns.formatPercent(successChance(type, name)[0], 2)}`);
+        ns.print(`  ${listHeaders.middleChild} Time:    ${colors.value}${formatTime(currentTime())} / ${formatTime(totalTime)} - ${progressBar(currentTime(), totalTime, 17)}`);
+        ns.print(`  ${listHeaders.middleChild} Count:   ${colors.value}${taskCount === Infinity ? '\u221e' : taskCount}`);
+        ns.print(`  ${listHeaders.lastChild} Stamina: ${colors.value}${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 2)}`);
         ns.print(divider);
 
         ns.print(` ${colors.section}City:${fillWhitespaces(10)}${colors.value}${city}`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Population: ${colors.value}${ns.formatNumber(populationOf(city), 3)}`);
-        ns.print(`  ${listHeaders.lastChild} ${colors.header}Chaos:      ${colors.value}${ns.formatNumber(cityChaos(city), 3)}`);
+        ns.print(`  ${listHeaders.middleChild} Population: ${colors.value}${ns.formatNumber(populationOf(city), 3)}`);
+        ns.print(`  ${listHeaders.lastChild} Chaos:      ${colors.value}${ns.formatNumber(cityChaos(city), 3)}`);
         ns.print(divider);
 
         ns.print(` ${colors.section}Skills`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}SP:${fillWhitespaces(maxSkillWidth - 2)} ${colors.value}${ns.formatNumber(blade.getSkillPoints(), 3)}`);
+        ns.print(`  ${listHeaders.middleChild} Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}`);
+        ns.print(`  ` + (skillCount > 0 ? `${listHeaders.middleChild}` : `${listHeaders.lastChild}`) + ` SP:${fillWhitespaces(maxSkillWidth - 2)} ${colors.value}${ns.formatNumber(blade.getSkillPoints(), 3)}`);
         blade.getSkillNames().forEach((skill, index) => {
             if (skillLvl(skill) > 0) {
                 const sp = requiredSP(skill);
                 ns.print(
                     (index !== 11 ? `  ${listHeaders.middleChild} ` : `  ${listHeaders.lastChild} `) +
-                    `${colors.header}${skill}:${fillWhitespaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(skillLvl(skill), 3)} - ` +
+                    `${skill}:${fillWhitespaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(skillLvl(skill), 3)} - ` +
                     (skill === 'Overclock' && skillLvl(skill) >= 90 ? 'MAX' :
                         (blade.getSkillPoints() > sp ? `${getANSIRGB_Text('#00ff00')}`
                             : `${getANSIRGB_Text('#ff0000')}`) + `${sp}`)
@@ -142,18 +141,18 @@ export async function main(ns) {
         });
         ns.print(divider);
 
-        const chance = successChance('black op', currentBlackOp)[0];
         ns.print(` ${colors.section}Chances`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Avg. Contract:  ${colors.value}${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
-        ns.print(`  ${listHeaders.lastChild} ${colors.header}Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('operation', operations), 2)}`);
+        ns.print(`  ${listHeaders.middleChild} Avg. Contract:  ${colors.value}${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
+        ns.print(`  ${listHeaders.lastChild} Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('operation', operations), 2)}`);
         ns.print(divider);
 
+        const chance = successChance('black op', currentBlackOp)[0];
         ns.print(` ${colors.section}Black Op:  ${colors.value}${currentBlackOp}`);
-        ns.print(`  ${listHeaders.middleChild} ${colors.header}Chance: ${chance > chanceLimits.blackOp ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
-        ns.print(`  ${listHeaders.lastChild} ${colors.header}Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} -` +
+        ns.print(`  ${listHeaders.middleChild} Chance: ${chance > chanceLimits.blackOp ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
+        ns.print(`  ${listHeaders.lastChild} Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} -` +
             ` ${rankMet ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRank)}`);
 
-        ns.resizeTail((divider.length - 2) * 10, lineCount * 25 + 30);
+        ns.resizeTail((divider.length - 2) * 10, lineCount * 25 + 35);
     }
 
     /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code). */
@@ -245,8 +244,8 @@ export async function main(ns) {
                     const totalTime = actionTime(type, action);
                     let current = currentTime();
                     while (current < totalTime) {
-                        await ns.sleep(1e3);
                         logAction(currentAction().type, currentAction().name, i + 1, count);
+                        await ns.sleep(1e3);
                         current = currentTime();
                         if (blade.getBonusTime() <= 1e3 && current === 0) break;
                         if (blade.getBonusTime() > 1e3 && current < 5e3) break;
@@ -399,10 +398,10 @@ export async function main(ns) {
     }
 
     /** Return a ```string``` representation of progress as a bar.
-     * @param {number} currentProgress The current progress
-     * @param {number} fullProgress Equals to ```100%``` of the progress
-     * @param {number} maxChar The number of characters the progress bar should display, excluding the brackets ```[]```
-     * @returns The progress bar as a ```string```
+     * @param {number} currentProgress The current progress.
+     * @param {number} fullProgress Equals to ```100%``` of the progress.
+     * @param {number} maxChar The number of characters the progress bar should display, excluding the brackets ```[]```.
+     * @returns The progress bar as a ```string```.
      */
     function progressBar(currentProgress, fullProgress, maxChar = 10) {
         const progressPerChar = fullProgress / maxChar;

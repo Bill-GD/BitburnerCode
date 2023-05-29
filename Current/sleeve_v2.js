@@ -1,5 +1,6 @@
-/** Version 2.3.1
- * Slightly modified the layout of the log (shorter vertically)
+/** Version 2.3.2
+ * Fixed bug with Crime time limit
+ * Can now choose specific CrimeType when not using preset
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -37,7 +38,7 @@ export async function main(ns) {
     const setBladeWork = (id, task) => sl.setToBladeburnerAction(id, task);
 
     // sort the ratio between time and exp gain of crimes, best 1st
-    const crimes = Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c])
+    let crimes = Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c])
         .sort((a, b) => compareCrimeStats(b, a));
 
     const bladeActions = [
@@ -74,16 +75,11 @@ export async function main(ns) {
             sleeves = Array(numSleeve()).fill().map(() => ['Idle', null]);
             break;
         case 'Combat':
-            if (await ns.prompt('Limit Crime time to 30 sec?'))
-                crimes.filter(a => crimeStats(a).time <= 30e3);
-            chanceLimit = await ns.prompt('Only select Crimes with chance of 80% or more?');
-            sleeves = Array(numSleeve()).fill().map(() => ['Crime', 'combat']);
-            break;
         case 'Karma':
             if (await ns.prompt('Limit Crime time to 30 sec?'))
-                crimes.filter(a => crimeStats(a).time <= 30e3);
+                crimes = crimes.filter(a => crimeStats(a).time <= 30e3);
             chanceLimit = await ns.prompt('Only select Crimes with chance of 80% or more?');
-            sleeves = Array(numSleeve()).fill().map(() => ['Crime', 'karma']);
+            sleeves = Array(numSleeve()).fill().map(() => ['Crime', preset.toLowerCase()]);
             break;
         case 'Infiltrate':
             sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Infiltrate synthoids']);
@@ -139,7 +135,13 @@ export async function main(ns) {
                     continue;
                 }
                 sleeves[selectedSleeve][0] = chosenOption;
-                if (chosenOption === 'Recovery' || chosenOption === 'Crime' || chosenOption === 'Idle') break;
+                if (chosenOption === 'Recovery' || chosenOption === 'Idle') break;
+                if (chosenOption === 'Crime') {
+                    chosenAction = await ns.prompt('Choose a crime',
+                        { 'type': 'select', 'choices': Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c]) }
+                    );
+                    if (chosenAction !== '') sleeves[selectedSleeve][1] = chosenAction;
+                }
                 if (chosenOption === 'Blade') {
                     chosenAction = await ns.prompt(
                         'Choose Bladeburner action',
@@ -164,27 +166,22 @@ export async function main(ns) {
                 setIdle(id);
                 break;
             case 'Crime':
-                if (action === 'combat') {
-                    let crimeTask = null;
-                    if (chanceLimit)
-                        crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
-                    setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
+                if (preset !== 'None') {
+                    let crimeTask = chanceLimit ? crimes.find(a => crimeChance(id, a) >= 0.8) : null;
+                    if (action === 'combat')
+                        setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
+                    if (action === 'karma') {
+                        crimes.sort((a, b) => compareCrimeKarma(b, a));
+                        setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
+                    }
                 }
-                if (action === 'karma') {
-                    crimes.sort((a, b) => compareCrimeKarma(b, a));
-                    let crimeTask = null;
-                    if (chanceLimit)
-                        crimeTask = crimes.find(a => crimeChance(id, a) >= 0.8);
-                    setCrimeTask(id, crimeTask ? crimeTask : crimes[0]);
-                }
+                if (action) setCrimeTask(id, action);
                 break;
             case 'Blade':
                 if (action) setBladeWork(id, action);
                 break;
         }
     });
-
-    const isAllIdle = sleeves.every(([t, a]) => t === 'Idle');
 
     while (true) {
         sleeves.forEach(([t, a], id) => {
