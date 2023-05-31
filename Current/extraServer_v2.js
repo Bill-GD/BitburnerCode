@@ -1,5 +1,5 @@
-/** Version 2.0.1
- * Notifies if the current BitNode does not allow purchased servers
+/** Version 2.0.2
+ * Added support for Hacknet servers
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -149,7 +149,10 @@ export async function main(ns) {
     ns.toast(`Bought ${count} server(s)`, 'info', 10e3);
 
     const files = ['hackScript.js', 'weaken.js', 'grow.js', 'hack.js'];
-    for (const server of boughtServers) {
+    for (const server of boughtServers) await handleServer(server);
+    for (let i = 0; i < eval('ns.hacknet').numNodes(); i++) await handleServer('hacknet-server-' + i);
+    
+    async function handleServer(server) {
         ns.killall(server, true);
         ns.scp(files, server, 'home');
         ns.toast(`Copied to ${server}`, 'success', 10e3);

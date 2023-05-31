@@ -1,5 +1,5 @@
-/** Version 2.2
- * Log has colors and new format
+/** Version 2.2.1
+ * Added sorting for hacknet-related augmentations
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -57,6 +57,7 @@ export async function main(ns) {
                         'strength', 'defense', 'dexterity', 'agility',
                         'charisma',
                         'blade',
+                        'hacknet',
                         'misc',
                         'special',
                     ]
@@ -213,6 +214,7 @@ export async function main(ns) {
                     type.includes('dexterity') ||
                     type.includes('agility') ||
                     type.includes('charisma') ||
+                    type.includes('hacknet') ||
                     type.includes('blade'));
             }
         });

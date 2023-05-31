@@ -1,5 +1,5 @@
-/** Version 2.2.3
- * Added shorcut: Join Bladeburner
+/** Version 2.2.4
+ * Added shorcut: Corporation
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -77,6 +77,7 @@ export async function main(ns) {
         blade: false,
         joinBlade: false,
         sleeve: false,
+        corp: false,
         runScript: false,
         traveling: false,
         buyRam: false,
@@ -173,12 +174,20 @@ export async function main(ns) {
         hooks.hookDex
     );
 
+    // corp
+    createElement(
+        'button',
+        { innerHTML: 'Corp', style: { color: theme.combat } },
+        'click', () => optionStates.corp = true,
+        hooks.hookDex
+    );
+
     // run script
     createElement(
         'button',
         { innerHTML: 'Script', style: { color: theme.combat } },
         'click', () => optionStates.runScript = true,
-        hooks.hookDex
+        hooks.hookAgi
     );
 
     // traveling
@@ -293,6 +302,10 @@ export async function main(ns) {
             if (optionStates.sleeve) {
                 ns.exec('sleeve_v2.js', 'home');
                 optionStates.sleeve = false;
+            }
+            if (optionStates.corp) {
+                ns.exec('corp_v1.js', 'home');
+                optionStates.corp = false;
             }
             if (optionStates.runScript) {
                 const file = await ns.prompt(

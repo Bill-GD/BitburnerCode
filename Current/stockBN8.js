@@ -32,7 +32,7 @@ function tendStocks(ns) {
         if (stock.longShares > 0) {
             if (stock.forecast > 0.5) {
                 longStocks.add(stock.sym);
-                ns.print(`INFO ${stock.summary} LONG ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent(100 * stock.profit / stock.cost, 2)}`);
+                ns.print(`INFO ${stock.summary} LONG ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent(stock.profit / stock.cost, 2)}`);
                 overallValue += (stock.cost + stock.profit);
             }
             else {
@@ -48,7 +48,7 @@ function tendStocks(ns) {
         if (stock.shortShares > 0) {
             if (stock.forecast < 0.5) {
                 shortStocks.add(stock.sym);
-                ns.print(`INFO ${stock.summary} SHORT ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent(100 * stock.profit / stock.cost, 2)}`);
+                ns.print(`INFO ${stock.summary} SHORT ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent(stock.profit / stock.cost, 2)}`);
                 overallValue += (stock.cost + stock.profit);
             }
             else {

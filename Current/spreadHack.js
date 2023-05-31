@@ -53,6 +53,15 @@ export async function main(ns) {
         }
         await ns.sleep(10);
     }
+    for (let i = 0; i < eval('ns.hacknet').numNodes(); i++) {
+        const server = 'hacknet-server-' + i;
+        ns.killall(server, true);
+        ns.scp(files, server, 'home');
+        ns.toast(`Copied to ${server}`, 'success', 10e3);
+        await ns.sleep(Math.round(Math.random() * 500));
+        ns.exec('hackScript.js', server, 1, 'hackFromPurchased');
+        count++;
+    }
 
     count > 0 && ns.tprintf(` (!) Distributed to ${count} server(s)`);
 }

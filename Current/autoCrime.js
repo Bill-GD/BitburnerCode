@@ -1,5 +1,5 @@
-/** Version 2.0.1
- * Added support for progress bar
+/** Version 2.0.2
+ * Updated the progress bar
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -44,11 +44,7 @@ export async function main(ns) {
     }
 
     function progressBar(currentProgress, fullProgress, maxChar = 10) {
-        const progressPerChar = fullProgress / maxChar;
-        const progressChar = Math.trunc(currentProgress / progressPerChar);
-        let p = '[';
-        for (let i = 0; i < maxChar; i++)
-            i < progressChar ? p += '\u2588' : p += ' ';
-        return p + ']';
+        const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
+        return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(maxChar - progress)}\u2524`;
     }
 }

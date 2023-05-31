@@ -1,11 +1,5 @@
-/** Version 2.5
- * Added colors and new format
- * Improved saved file handling
- * Improved the handling of leftover aug that is currently grafting
- * Improved log/display
- * Added different display for grafted augs
- * Added progress bar with percentage
- * Log updates every second
+/** Version 2.5.1
+ * Updated the progress bar
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -303,11 +297,7 @@ export async function main(ns) {
     }
 
     function progressBar(currentProgress, fullProgress, maxChar = 10) {
-        const progressPerChar = fullProgress / maxChar;
-        const progressChar = Math.trunc(currentProgress / progressPerChar);
-        let p = '[';
-        for (let i = 0; i < maxChar; i++)
-            i < progressChar ? p += '\u2588' : p += ' ';
-        return p + ']' + ` ${ns.formatPercent(currentProgress / fullProgress, 2)}`;
+        const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
+        return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(maxChar - progress)}\u2524 ${ns.formatPercent(currentProgress / fullProgress, 2)}`;
     }
 }

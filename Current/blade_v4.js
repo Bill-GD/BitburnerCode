@@ -1,13 +1,12 @@
-/** Version 4.9.1
- * Shortened some colors code
- * Fixed some minor UI inconsistencies
+/** Version 4.9.2
+ * Updated the progress bar
+ * Now log the estimated increase of Rank & Skill Points
  */
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
     ns.clearLog();
     ns.tail();
-
 
     const chanceLimits = {
         contract: 0.6,
@@ -60,19 +59,21 @@ export async function main(ns) {
     operations.reverse();
 
     let currentBlackOp = getCurrentBlackOp();
-    let bestOp = getBestOp();
+    let currentOp = getBestOp();
 
+    let rankGain = [Infinity, 0];
+
+    // main loop
     while (await ns.sleep(10)) {
         // general
         await checkCity();
+        await checkChaos();
         await performAction('general', 'Training');
         await performAction('general', 'Field Analysis');
-        await regulateChaos();
 
         // contracts
         await checkAccuracy('contract', 'Tracking');
-        if (successChance('contract', 'Tracking')[0] >= chanceLimits.contract &&
-            successChance('operation', 'Investigation')[0] < chanceLimits.operation) {
+        if (successChance('contract', 'Tracking')[0] >= chanceLimits.contract && currentOp === '') {
             for (const con of contracts) {
                 await checkCity();
                 await checkAccuracy('contract', con);
@@ -80,13 +81,12 @@ export async function main(ns) {
                 await performAction('contract', con, Math.min(10, actionCount('contract', con)));
                 await ns.sleep(10);
             }
-            await regulateChaos();
         }
 
-        if (bestOp !== '') {
+        if (currentOp !== '') {
             await checkCity();
-            await performAction('operation', bestOp, Math.trunc(Math.random() * 8 + 8)); // 8-15
-            bestOp = getBestOp();
+            await performAction('op', currentOp, Math.trunc(Math.random() * 8 + 8)); // 8-15
+            currentOp = getBestOp();
         }
     }
 
@@ -103,6 +103,7 @@ export async function main(ns) {
                 skillCount++;
             }
         });
+        const currentSP = blade.getSkillPoints();
         const currentRank = blade.getRank();
         const blackOpRank = blade.getBlackOpRank(currentBlackOp);
         const rankMet = currentRank > blackOpRank;
@@ -123,9 +124,14 @@ export async function main(ns) {
         ns.print(`  ${listHeaders.lastChild} Chaos:      ${colors.value}${ns.formatNumber(cityChaos(city), 3)}`);
         ns.print(divider);
 
+        const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
+        const spGainAvg = Math.trunc(rankGainAvg) / 3;
         ns.print(` ${colors.section}Skills`);
-        ns.print(`  ${listHeaders.middleChild} Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}`);
-        ns.print(`  ` + (skillCount > 0 ? `${listHeaders.middleChild}` : `${listHeaders.lastChild}`) + ` SP:${fillWhitespaces(maxSkillWidth - 2)} ${colors.value}${ns.formatNumber(blade.getSkillPoints(), 3)}`);
+        ns.print(`  ${listHeaders.middleChild} Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 2)}` +
+            `${rankGainAvg > 0 ? ` -> ${getANSIRGB_Text('#00ff00')}${ns.formatNumber(rankGainAvg + currentRank, 2)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)}` : ''}`);
+        ns.print(`  ` + (skillCount > 0 ? `${listHeaders.middleChild}` : `${listHeaders.lastChild}`) +
+            ` Skill Points:${fillWhitespaces(maxSkillWidth - 12)} ${colors.value}${ns.formatNumber(currentSP, 3)}` +
+            `${spGainAvg > 0 ? ` -> ${getANSIRGB_Text('#00ff00')}${Math.trunc(currentSP + spGainAvg)} \u00b1 ${Math.trunc((rankGain[1] / 3) - spGainAvg)}` : ''}`);
         blade.getSkillNames().forEach((skill, index) => {
             if (skillLvl(skill) > 0) {
                 const sp = requiredSP(skill);
@@ -143,10 +149,10 @@ export async function main(ns) {
 
         ns.print(` ${colors.section}Chances`);
         ns.print(`  ${listHeaders.middleChild} Avg. Contract:  ${colors.value}${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
-        ns.print(`  ${listHeaders.lastChild} Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('operation', operations), 2)}`);
+        ns.print(`  ${listHeaders.lastChild} Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('op', operations), 2)}`);
         ns.print(divider);
 
-        const chance = successChance('black op', currentBlackOp)[0];
+        const chance = successChance('blackop', currentBlackOp)[0];
         ns.print(` ${colors.section}Black Op:  ${colors.value}${currentBlackOp}`);
         ns.print(`  ${listHeaders.middleChild} Chance: ${chance > chanceLimits.blackOp ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
         ns.print(`  ${listHeaders.lastChild} Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} -` +
@@ -185,7 +191,7 @@ export async function main(ns) {
     function getChaosThreshold(city = '', chance = 1) {
         let contractLevel = 0, opLevel = 0;
         contracts.forEach(c => contractLevel += blade.getActionCurrentLevel('contract', c));
-        operations.forEach(op => opLevel += blade.getActionCurrentLevel('operation', op));
+        operations.forEach(op => opLevel += blade.getActionCurrentLevel('op', op));
         const averageActionLevel = (contractLevel / contracts.length + opLevel / operations.length) / 2;
 
         return Math.pow(getCompetence(city) / (100 * chance * Math.pow((1.03 + 1.044) / 2, averageActionLevel - 1)), 2) + 49;
@@ -217,7 +223,7 @@ export async function main(ns) {
     function getDifficulty(city) {
         let contractLevel = 0, opLevel = 0;
         contracts.forEach(c => contractLevel += blade.getActionCurrentLevel('contract', c));
-        operations.forEach(op => opLevel += blade.getActionCurrentLevel('operation', op));
+        operations.forEach(op => opLevel += blade.getActionCurrentLevel('op', op));
         const averageActionLevel = (contractLevel / contracts.length + opLevel / operations.length) / 2;
 
         const chaos = cityChaos(city);
@@ -238,27 +244,32 @@ export async function main(ns) {
     */
     async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
         stamina && await checkStamina();
-        if (type === 'general' || type === 'contract' || type === 'operation' || type === 'black op') {
-            for (let i = 0; i < count; i++) {
-                if (blade.startAction(type, action)) {
-                    const totalTime = actionTime(type, action);
-                    let current = currentTime();
-                    while (current < totalTime) {
-                        logAction(currentAction().type, currentAction().name, i + 1, count);
-                        await ns.sleep(1e3);
-                        current = currentTime();
-                        if (blade.getBonusTime() <= 1e3 && current === 0) break;
-                        if (blade.getBonusTime() > 1e3 && current < 5e3) break;
-                    }
-                    await upgradeSkills();
-                    blackOp && await checkBlackOps();
-                }
-                else i--;
+        for (let i = 0; i < count; i++) {
+            // if (action === 'Field Analysis' || type === 'contract' || type === 'op' || type === 'blackop') {
+            rankGain = [Infinity, 0];
+            for (let j = 0; j < 50; j++) {
+                const repGain = blade.getActionRepGain(type, action);
+                const rank = repGain + (Math.random() * (repGain * 0.2) - repGain * 0.1);
+                rankGain[0] = Math.min(rank, rankGain[0]);
+                rankGain[1] = Math.max(rank, rankGain[1]);
             }
-        }
-        else {
-            ns.alert('(!) Action type is Invalid (!)');
-            ns.exit();
+            // }
+            if (rankGain[0] === Infinity) rankGain[0] = 0;
+
+            if (blade.startAction(type, action)) {
+                const totalTime = actionTime(type, action);
+                let current = currentTime();
+                while (current < totalTime) {
+                    logAction(currentAction().type, currentAction().name, i + 1, count);
+                    await ns.sleep(1e3);
+                    current = currentTime();
+                    if (blade.getBonusTime() <= 1e3 && current === 0) break;
+                    if (blade.getBonusTime() > 1e3 && current < 5e3) break;
+                }
+                await upgradeSkills();
+                blackOp && await checkBlackOps();
+            }
+            else i--;
         }
     }
 
@@ -303,7 +314,7 @@ export async function main(ns) {
     /** Starts ```Diplomacy``` if ```chaos > getChaosThreshold```, nothing otherwise.
      * @see {@link getChaosThreshold()}
      */
-    async function regulateChaos() {
+    async function checkChaos() {
         const currentCity = blade.getCity();
         const chaos = cityChaos(currentCity);
         if (chaos <= 50) return;
@@ -314,7 +325,7 @@ export async function main(ns) {
         }
     }
 
-    /** Perform the current black op if ```chance === 100%``` and ```rank``` is sufficient. */
+    /** Perform the current blackop if ```chance === 100%``` and ```rank``` is sufficient. */
     async function checkBlackOps() {
         while (await ns.sleep(10)) {
             if (currentBlackOp === '') { // Daedalus is done
@@ -324,12 +335,12 @@ export async function main(ns) {
                 ns.exit();
             }
             if (blade.getRank() < blade.getBlackOpRank(currentBlackOp)) return;
-            await checkAccuracy('black op', currentBlackOp);
-            if (successChance('black op', currentBlackOp)[0] < chanceLimits.blackOp) return;
+            await checkAccuracy('blackop', currentBlackOp);
+            if (successChance('blackop', currentBlackOp)[0] < chanceLimits.blackOp) return;
 
-            await performAction('black op', currentBlackOp, 1, true, false);
+            await performAction('blackop', currentBlackOp, 1, true, false);
 
-            // if succeed, notify the user and update the black op
+            // if succeed, notify the user and update the blackop
             const nextBlackOp = getCurrentBlackOp();
             if (nextBlackOp !== currentBlackOp) {
                 ns.toast(`Successfully completed ${currentBlackOp}`, 'success', 5e3);
@@ -342,7 +353,7 @@ export async function main(ns) {
         let currentBlackOp = '';
         blade.getBlackOpNames().forEach(bo => {
             if (currentBlackOp !== '') return;
-            if (actionCount('black op', bo) > 0) {
+            if (actionCount('blackop', bo) > 0) {
                 currentBlackOp = bo;
                 return;
             }
@@ -360,7 +371,7 @@ export async function main(ns) {
         let bestOp = '';
         operations.forEach(op => {
             if (bestOp !== '') return;
-            if (actionCount('operation', op) > 0 && successChance('operation', op)[0] >= chanceLimits.operation)
+            if (actionCount('op', op) > 0 && successChance('op', op)[0] >= chanceLimits.operation)
                 bestOp = op;
         });
         return bestOp;
@@ -400,15 +411,11 @@ export async function main(ns) {
     /** Return a ```string``` representation of progress as a bar.
      * @param {number} currentProgress The current progress.
      * @param {number} fullProgress Equals to ```100%``` of the progress.
-     * @param {number} maxChar The number of characters the progress bar should display, excluding the brackets ```[]```.
+     * @param {number} maxChar The number of characters the progress bar should display, excluding the enclosing characters.
      * @returns The progress bar as a ```string```.
      */
     function progressBar(currentProgress, fullProgress, maxChar = 10) {
-        const progressPerChar = fullProgress / maxChar;
-        const progressChar = Math.trunc(currentProgress / progressPerChar);
-        let p = '[';
-        for (let i = 0; i < maxChar; i++)
-            i < progressChar ? p += '\u2588' : p += ' ';
-        return p + ']';
+        const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
+        return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(maxChar - progress)}\u2524`;
     }
 }
