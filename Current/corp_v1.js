@@ -1,13 +1,15 @@
-/** Version 1.0
- * First time trying to make a Corporation script
- * Can create a new Corporation
- * Can expand to 2 industries (Tobacco & Healthcare)
- * Can expand to cities
- * Can handle Warehouses, Offices and Employees
- * Can create/discontinue new Products
- * Can check for Unlocks, Upgrades, Researches and AdVert
+/** Version 1.1
+ * Probably the final version of v1
  * 
- * Things may break in the future as not everything is tested
+ * Improved log with colors & format
+ * Reduced some code/functions
+ * Checks for (big) investment(s)
+ * Switched to Restaurant
+ * Changed the math (limit) of some aspects (Upgrades, Unlocks, etc...)
+ * 
+ * * Note: Corp is basically sucks for normal gameplay (slow & next to worthless in some BNs)
+ * * Either 'borrow' a script from somewhere -> modify or use Corp manually
+ * * The combo of Blade-Graft-Stock-Sleeve is much better imo
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -17,9 +19,20 @@ export async function main(ns) {
 
     const corp = ns.corporation;
 
-    // mutable enums
+    const colors = {
+        section: getColor(ns.ui.getTheme().money),
+        header: getColor(ns.ui.getTheme().hp),
+        value: getColor(ns.ui.getTheme().white),
+    };
+
+    const listHeaders = {
+        middleChild: `${colors.header}\u251C`,
+        extendedChild: `${colors.header}\u2502`,
+        lastChild: `${colors.header}\u2514`,
+    }
+
     const Enums = {
-        // indicates what happens next
+        // indicates what's the next state
         CorpStates: {
             Start: 'START',
             Purchase: 'PURCHASE',
@@ -42,21 +55,21 @@ export async function main(ns) {
             // Export: 'Export',
             VeChain: 'VeChain',
             MarketDemand: 'Market Research - Demand',
-            // ShadyAccounting: 'Shady Accounting',
+            ShadyAccounting: 'Shady Accounting',
             MarketCompetition: 'Market Data - Competition',
-            // GovernmentPartnership: 'Government Partnership',
+            GovernmentPartnership: 'Government Partnership',
         },
         Upgrades: {
-            SmartFactories: 'Smart Factories',
-            WilsonAnalytics: 'Wilson Analytics',
-            NeuralAccelerators: 'Neural Accelerators',
-            ProjectInsight: 'Project Insight',
-            SmartStorage: 'Smart Storage',
-            NuoptimalImplants: 'Nuoptimal Nootropic Injector Implants',
             FocusWires: 'FocusWires',
-            DreamSense: 'DreamSense',
-            SpeechImplants: 'Speech Processor Implants',
-            ABCSalesBots: 'ABC SalesBots',
+            SmartFactories: 'Smart Factories',
+            NeuralAccelerators: 'Neural Accelerators',
+            WilsonAnalytics: 'Wilson Analytics',
+            NuoptimalImplants: 'Nuoptimal Nootropic Injector Implants',
+            ProjectInsight: 'Project Insight',
+            // SpeechImplants: 'Speech Processor Implants',
+            // SmartStorage: 'Smart Storage',
+            // DreamSense: 'DreamSense',
+            // ABCSalesBots: 'ABC SalesBots',
         },
         Researches: {
             HiTechLab: new Research('Hi-Tech R&D Laboratory'),
@@ -85,19 +98,14 @@ export async function main(ns) {
     const corpInfo = () => corp.getCorporation();
     const getDivisions = () => corpInfo().divisions;
     const getFunds = () => corpInfo().funds;
-    const industryInfo = industry => corp.getIndustryData(industry);
-    const divInfo = division => corp.getDivision(division);
-    const officeInfo = (division, city) => corp.getOffice(division, city);
-    const officeSizeCost = (division, city, size) => corp.getOfficeSizeUpgradeCost(division, city, size);
-    const warehouseInfo = (division, city) => corp.getWarehouse(division, city);
-    const productInfo = (division, city, product) => corp.getProduct(division, city, product);
-    const upgradeLevel = upgrade => corp.getUpgradeLevel(upgrade);
-    const researchCost = (division, research) => corp.getResearchCost(division, research);
+    const getAllowedFunds = () => getFunds() * 0.5; // determines how much money is allowed to use by this script
+
+    let stage = 0;
 
     let MAX_PRODUCT_COUNT = 3;
     const researches = Object.values(Enums.Researches);
-    const unlocks = Object.values(Enums.Unlocks);
-    const upgrades = Object.values(Enums.Upgrades);
+    let unlocks = Object.values(Enums.Unlocks);
+    let upgrades = Object.values(Enums.Upgrades);
 
     if (!corp.hasCorporation()) {
         if (!(await ns.prompt('Create a new Corporation?' + `You have $${ns.formatNumber(ns.getServerMoneyAvailable('home'))} / $150b`)))
@@ -105,7 +113,7 @@ export async function main(ns) {
         corp.createCorporation('BillCorp', false);
     }
     try { corp.purchaseUnlock(Enums.Unlocks.SmartSupply); } catch { }
-    initDivision('Tobacco', 'Bigarette');
+    initDivision('Restaurant', 'BFood');
 
     while (true) {
         ns.clearLog();
@@ -116,7 +124,7 @@ export async function main(ns) {
             for (const division of getDivisions()) {
                 handleProduct(division);
             }
-            log(Enums.CorpStates.Start);
+            log();
         }
         while (corpInfo().state === Enums.CorpStates.Purchase) await ns.sleep(10);
 
@@ -124,35 +132,38 @@ export async function main(ns) {
         if (corpInfo().state === Enums.CorpStates.Production) {
             for (const division of getDivisions()) {
                 upgradeOffices(division);
+                handleEmployees(division);
             }
-            log(Enums.CorpStates.Purchase);
+            log();
         }
         while (corpInfo().state === Enums.CorpStates.Production) await ns.sleep(10);
 
         // * current: production
         if (corpInfo().state === Enums.CorpStates.Export) {
             for (const division of getDivisions()) {
-                checkAdVert(division);
-                handleWarehouse(division);
+                await checkAdVert(division);
             }
-            log(Enums.CorpStates.Production);
+            log();
         }
         while (corpInfo().state === Enums.CorpStates.Export) await ns.sleep(10);
 
         // * current: export
         if (corpInfo().state === Enums.CorpStates.Sale) {
             for (const division of getDivisions()) {
-                handleResearch(division);
+                handleWarehouse(division);
+                handleProductSale(division);
             }
-            log(Enums.CorpStates.Export);
+            log();
         }
         while (corpInfo().state === Enums.CorpStates.Sale) await ns.sleep(10);
 
         // * current: sale
         if (corpInfo().state === Enums.CorpStates.Start) {
-            // for (const division of getDivisions()) {
-            // }
-            log(Enums.CorpStates.Sale);
+            for (const division of getDivisions()) {
+                handleInvestment();
+                handleResearch(division);
+            }
+            log();
         }
         while (corpInfo().state === Enums.CorpStates.Start) await ns.sleep(10);
 
@@ -160,29 +171,74 @@ export async function main(ns) {
         handleUpgrades();
     }
 
-    /**
-     * @param {Enums.CorpStates | string} state The current Corporation state.
-     */
-    function log(state) {
+    /** Log the current Corp state. */
+    function log() {
         ns.clearLog();
-        ns.print(`Current state: ${state}\n\n`);
+        const lines = [];
+        const investFunds = corp.getInvestmentOffer().funds;
 
+        lines.push(` sCurrent State: v${corpInfo().state}`);
+        lines.push(` sFunds: v$${ns.formatNumber(getAllowedFunds(), 3)} / $${ns.formatNumber(getFunds(), 3)}`);
+        lines.push(` sInvestment`);
+        lines.push(`  m Current:  v$${ns.formatNumber(investFunds, 3)} / $1t`);
+        lines.push(`  l Progress: v${progressBar(investFunds, 1e12)}\n`);
         const divisions = getDivisions();
 
         divisions.forEach(div => {
-            const info = divInfo(div);
-            const products = info.products;
+            const info = corp.getDivision(div);
+            lines.push(` sDivision: v${div}`);
+            const profit = (info.lastCycleRevenue - info.lastCycleExpenses) * 10;
 
-            ns.print(`Division: ${div}`);
-            ns.print(` AdVert: ${info.numAdVerts}`);
-            ns.print(` Research: ${ns.formatNumber(info.researchPoints, 3)}`);
-            products.forEach(product => {
-                const info = productInfo(div, ns.enums.CityName.Sector12, product);
-                ns.print(` Product: ${product}`);
-                ns.print(`  Produced: ${ns.formatNumber(info.productionAmount, 3)}`);
+            lines.push(`  m AdVert:   v${info.numAdVerts}`);
+            lines.push(`  m Research: v${ns.formatNumber(info.researchPoints, 3)}`);
+            lines.push(`  m Profit:   ` +
+                (profit > 0 ? `g` : `r`) + `$${ns.formatNumber(profit, 3)} v/ cycle`);
+
+            lines.push(`  m Cities`);
+            info.cities.forEach((city, index) => {
+                const oInfo = corp.getOffice(div, city);
+                let employeeCount = '[';
+                Object.entries(oInfo.employeeJobs).slice(0, 5).forEach(([job, count], i) => {
+                    employeeCount += `${count}`;
+                    if (i !== 4) employeeCount += ', ';
+                });
+
+                lines.push(`  e ` +
+                    (index === 5 ? `l` : `m`) +
+                    ` ${city}:${fillWhitespaces(11 - city.length - 1)}` +
+                    `v${employeeCount}] -> ${ns.formatNumber(oInfo.numEmployees, 3)}`);
+                // `v${ns.formatNumber(oInfo.numEmployees, 1)} / ${ns.formatNumber(oInfo.size, 1)}`);
+
+                // lines.push(`  e ` + (index !== 5 ? 'e' : ' ') + ` l Position: ${employeeCount}`);
             });
 
-            ns.print('\n');
+            const totalProduct = info.products.length;
+            info.products.forEach((product, index) => {
+                const pInfo = corp.getProduct(div, ns.enums.CityName.Sector12, product);
+                lines.push(`  ` + (index === totalProduct - 1 ? `l` : `m`) + ` Product: v${product}`);
+                const devProg = pInfo.developmentProgress;
+                if (devProg < 100) lines.push(`    l Development: v${ns.formatPercent(devProg / 100, 2)}`);
+                else {
+                    lines.push(`  ` + (index === totalProduct - 1 ? ` ` : `e`) + ` m Rating: v${ns.formatNumber(pInfo.effectiveRating, 3)}`);
+                    lines.push(`  ` + (index === totalProduct - 1 ? ` ` : `e`) + ` l Sell / Prod: v${ns.formatNumber(pInfo.actualSellAmount, 3)} / ${ns.formatNumber(pInfo.productionAmount, 3)}`);
+                }
+            });
+
+            const maxWidth = Math.max(...(lines.map(line => line.length)));
+
+            ns.print(lines
+                .join('\n')
+                .replaceAll(' e', ` ${listHeaders.extendedChild}`)
+                .replaceAll(' m ', ` ${listHeaders.middleChild} `)
+                .replaceAll(' l ', ` ${listHeaders.lastChild} `)
+                .replaceAll(' s', ` ${colors.section}`)
+                // .replaceAll(' h', `${colors.header}`)
+                .replaceAll(' v', ` ${colors.value}`)
+                .replaceAll(' g', ` ${getColor('#00ff00')}`)
+                .replaceAll(' r', ` ${getColor('#ff0000')}`)
+            );
+
+            ns.resizeTail((maxWidth) * 10, lines.length * 25 + 50);
         });
     }
 
@@ -193,25 +249,32 @@ export async function main(ns) {
      */
     function initDivision(industry, division) {
         try {
-            if (getDivisions().includes(division) || getFunds() < industryInfo(industry).startingCost * 2) return;
+            if (getDivisions().includes(division) || getAllowedFunds() < corp.getIndustryData(industry).startingCost * 2) return;
             corp.expandIndustry(industry, division);
 
             Object.values(ns.enums.CityName)
                 .forEach(city => {
-                    if (!divInfo(division).cities.includes(city) && getFunds() > 4e9)
+                    if (!corp.getDivision(division).cities.includes(city) && getAllowedFunds() > 4e9)
                         corp.expandCity(division, city);
-                    if (!corp.hasWarehouse(division, city) && getFunds() > 5e9)
+                    if (!corp.hasWarehouse(division, city) && getAllowedFunds() > 5e9)
                         corp.purchaseWarehouse(division, city);
                     try { corp.setSmartSupply(division, city, true); } catch { }
                 });
         } catch { }
     }
 
+    /** Check if Investment funds, accept if good. */
+    function handleInvestment() {
+        const investOffer = corp.getInvestmentOffer();
+        if (investOffer.funds < 1e12 || investOffer.round > 2) return;
+        corp.acceptInvestmentOffer();
+    }
+
     /** Purchases Unlocks if funds is sufficient. */
     function handleUnlocks() {
+        unlocks = unlocks.filter(unlock => !corp.hasUnlock(unlock));
         unlocks.forEach(unlock => {
-            if (corp.hasUnlock(unlock)) return;
-            if (getFunds() < corp.getUnlockCost(unlock) * 15) return;
+            if (getAllowedFunds() < corp.getUnlockCost(unlock) * 30) return;
 
             corp.purchaseUnlock(unlock);
         });
@@ -220,9 +283,10 @@ export async function main(ns) {
     /** Levels up Upgrades if funds is sufficient. */
     function handleUpgrades() {
         upgrades.forEach(upgrade => {
-            if (getFunds() < corp.getUpgradeLevelCost(upgrade) * 6) return;
-
-            corp.levelUpgrade(upgrade);
+            if (corp.getUpgradeLevelCost(upgrade) < getAllowedFunds() / Math.max(1, Math.log(corp.getUpgradeLevel(upgrade)) * 20 / Math.LN10)) {
+                if (stage === 0 && corp.getUpgradeLevel(upgrade) === 1) return;
+                corp.levelUpgrade(upgrade);
+            }
         });
     }
 
@@ -232,7 +296,7 @@ export async function main(ns) {
     function handleResearch(division) {
         // check research root
         if (!corp.hasResearched(division, Enums.Researches.HiTechLab.name)) {
-            if (divInfo(division).researchPoints < researchCost(division, Enums.Researches.HiTechLab.name))
+            if (corp.getDivision(division).researchPoints < corp.getResearchCost(division, Enums.Researches.HiTechLab.name))
                 return;
             corp.research(division, Enums.Researches.HiTechLab.name);
         }
@@ -240,7 +304,7 @@ export async function main(ns) {
             // skip if: has researched, prereq not researched, insufficient fund
             if (corp.hasResearched(division, research.name)) return;
             if (!corp.hasResearched(division, research.prerequisite)) return;
-            if (divInfo(division).researchPoints < researchCost(division, research.name)) return;
+            if (corp.getDivision(division).researchPoints < corp.getResearchCost(division, research.name)) return;
 
             corp.research(division, research.name);
 
@@ -254,25 +318,14 @@ export async function main(ns) {
      * @param {string} division Name of the division. 
      */
     function upgradeOffices(division) {
-        let upgraded = false;
-
         try {
             Object.values(ns.enums.CityName).forEach(city => {
                 // before employee count reaches 9
-                if (officeInfo(division, city).size <= 9) {
-                    if (getFunds() > officeSizeCost(division, city, 3) * 5) {
-                        corp.upgradeOfficeSize(division, city, 3);
-                        upgraded = true;
-                    }
-                }
+                if (corp.getOffice(division, city).size <= 9 && corp.getOfficeSizeUpgradeCost(division, city, 3) < getAllowedFunds() * 0.1)
+                    corp.upgradeOfficeSize(division, city, 3);
                 // force employee count to be multiples of 9 
-                else {
-                    if (getFunds() > officeSizeCost(division, city, 9) * 5) {
-                        corp.upgradeOfficeSize(division, city, 9);
-                        upgraded = true;
-                    }
-                }
-                if (upgraded) handleEmployees(division);
+                else if (corp.getOfficeSizeUpgradeCost(division, city, 9) < getAllowedFunds() * 0.1)
+                    corp.upgradeOfficeSize(division, city, 9);
             });
         } catch { }
     }
@@ -284,41 +337,45 @@ export async function main(ns) {
     function handleEmployees(division) {
         Object.values(ns.enums.CityName)
             .forEach(city => {
-                try {
-                    const maxSize = officeInfo(division, city).size;
-                    while (officeInfo(division, city).numEmployees < maxSize) {
-                        switch (officeInfo(division, city).numEmployees % 9) {
-                            case 0:
-                            case 5:
-                                corp.hireEmployee(division, city, Enums.Jobs.Operations);
-                                break;
-                            case 1:
-                            case 6:
-                                corp.hireEmployee(division, city, Enums.Jobs.Engineer);
-                                break;
-                            case 2:
-                            case 7:
-                                corp.hireEmployee(division, city, Enums.Jobs.Management);
-                                break;
-                            case 3:
-                            case 8:
-                                corp.hireEmployee(division, city, Enums.Jobs.RandD);
-                                break;
-                            case 4:
-                                corp.hireEmployee(division, city, Enums.Jobs.Business);
-                                break;
-                        }
+                if (city !== ns.enums.CityName.Aevum) {
+                    const products = corp.getDivision(division).products;
+                    if (products.length <= 0) return;
+                    if (products.length === 1 && corp.getProduct(division, city, products[0]).developmentProgress < 100) return;
+                }
+                const maxSize = corp.getOffice(division, city).size;
+                while (corp.getOffice(division, city).numEmployees < maxSize) {
+                    switch (corp.getOffice(division, city).numEmployees % 9) {
+                        case 0:
+                        case 5:
+                            corp.hireEmployee(division, city, Enums.Jobs.Operations);
+                            break;
+                        case 1:
+                        case 6:
+                            corp.hireEmployee(division, city, Enums.Jobs.Engineer);
+                            break;
+                        case 2:
+                        case 7:
+                            corp.hireEmployee(division, city, Enums.Jobs.Management);
+                            break;
+                        case 3:
+                        case 8:
+                            corp.hireEmployee(division, city, Enums.Jobs.Business);
+                            break;
+                        case 4:
+                            corp.hireEmployee(division, city, Enums.Jobs.RandD);
+                            break;
                     }
-                } catch { }
+                }
             });
     }
 
     /** Handles the hiring of AdVert.
      * @param {string} division Name of the division.
      */
-    function checkAdVert(division) {
-        if (corp.getHireAdVertCost(division) < getFunds() * 0.05) {
+    async function checkAdVert(division) {
+        while (corp.getHireAdVertCost(division) < getAllowedFunds() / (Math.max(1, Math.log(corp.getDivision(division).numAdVerts) * 2 / Math.LN10) * getDivisions().length)) {
             corp.hireAdVert(division);
+            await ns.sleep(1);
         }
     }
 
@@ -328,11 +385,10 @@ export async function main(ns) {
     function handleWarehouse(division) {
         Object.values(ns.enums.CityName)
             .forEach(city => {
-                const info = warehouseInfo(division, city);
-                if (info.sizeUsed < info.size * 0.9) return;
-                if (corp.getUpgradeWarehouseCost(division, city, 1) < getFunds() * 0.05) {
+                const info = corp.getWarehouse(division, city);
+                if (info.sizeUsed < info.size * 0.99) return;
+                if (corp.getUpgradeWarehouseCost(division, city, 1) < getAllowedFunds() * 0.01)
                     corp.upgradeWarehouse(division, city, 1);
-                }
             });
     }
 
@@ -340,30 +396,98 @@ export async function main(ns) {
      * @param {string} division Name of the division. 
      */
     function handleProduct(division) {
-        let divProducts = divInfo(division).products;
+        let divProducts = corp.getDivision(division).products;
         // 1st product
-        if (divProducts.length <= 0 && getFunds() < 3e9 * 6) return;
+        if (divProducts.length <= 0 && getAllowedFunds() < 5e9) return;
         // later products
         if (divProducts.length > 0) {
-            // limit how often a product is created
-            if (getFunds() < 3e9 * 10 * 6) return;
             // only start next product if previous product is fully developed
-            if (corp.getProduct(division, ns.enums.CityName.Sector12, divProducts.slice(-1)[0]).developmentProgress !== 100) return;
+            if (corp.getProduct(division, ns.enums.CityName.Sector12, divProducts.slice(-1)[0]).developmentProgress < 100) return;
+            // limit how often a product is created
+            if (getAllowedFunds() < 3e9 * 10) return;
         }
 
         // remove oldest product if max product is reached
         if (divProducts.length >= MAX_PRODUCT_COUNT) {
             corp.discontinueProduct(division, divProducts[0]);
-            divProducts = divInfo(division).products;
+            divProducts = corp.getDivision(division).products;
         }
 
-        const newProduct = `${divInfo(division).type.replace(' ', '')}-` +
+        const newProduct = `${corp.getDivision(division).type.replace(' ', '')}-` +
             (divProducts.length <= 0
                 ? '0'
                 : `${parseInt(divProducts.slice(-1)[0].split('-')[1]) + 1}`);
 
-        corp.makeProduct(division, ns.enums.CityName.Sector12, newProduct, 1e9, 2e9);
-        corp.sellProduct(division, ns.enums.CityName.Sector12, newProduct, 'MAX', 'MP', true);
+        corp.makeProduct(division, ns.enums.CityName.Aevum, newProduct, 1e9, 2e9);
+    }
+
+    /** Toggles products sale of the specified division.
+     * @param {string} division Name of the division.
+     * @param {boolean} willSell Toggle selling. Defaults to ```true```.
+     */
+    function handleProductSale(division, willSell = true) {
+        Object.values(ns.enums.CityName).forEach(city => {
+            // const info = corp.getWarehouse(division, city);
+            // if (willSell && info.sizeUsed < info.size * 0.95) return;
+            corp.getDivision(division).products.forEach(product => {
+                if (corp.getProduct(division, city, product).developmentProgress < 100) return;
+                corp.sellProduct(division, city, product, willSell ? 'MAX' : '0', willSell ? 'MP+7' : '0', true);
+            });
+        });
+    }
+
+    // /**
+    //  * Get the business factor from a city in the specified division.
+    //  * @param {string} division Name of the division.
+    //  * @param {CityName} city The city of the division.
+    //  */
+    // function getBusinessFactor(division, city) {
+    //     const jobProd = 1 + corp.getOffice(division, city).employeeProductionByJob[Enums.Jobs.Business];
+    //     return Math.pow(jobProd, 0.26) + jobProd / 10e3;
+    // }
+
+    // /**
+    //  * Get the advertising factor from a city in the specified division.
+    //  * @param {CorpIndustryName} industry The industry of the division.
+    //  * @param {string} division Name of the division.
+    //  */
+    // function getAdvertisingFactors(industry, division) {
+    //     const awareness = corp.getDivision(division).awareness;
+    //     const popularity = corp.getDivision(division).popularity;
+    //     const advertisingFactor = corp.getIndustryData(industry).advertisingFactor;
+
+    //     const awarenessFac = Math.pow(awareness + 1, advertisingFactor);
+    //     const popularityFac = Math.pow(popularity + 1, advertisingFactor);
+    //     const ratioFac = awareness === 0 ? 0.01 : Math.max((popularity + 0.001) / awareness, 0.01);
+    //     const totalFac = Math.pow(awarenessFac * popularityFac * ratioFac, 0.85);
+
+    //     return totalFac;
+    // }
+
+    // /**
+    //  * Calculate the market factor of the given product.
+    //  * @param {Product} product The product to process. Pass product using ```ns.corporation.getProduct()```.
+    //  * @returns The market factor of the product.
+    //  */
+    // function getMarketFactor(product) {
+    //     return Math.max(0.1, (product.demand * (100 - product.competition)) / 100);
+    // }
+
+    function getColor(colorHex = '#ffffff') {
+        if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
+        const r = parseInt(colorHex.substring(1, 3), 16);
+        const g = parseInt(colorHex.substring(3, 5), 16);
+        const b = parseInt(colorHex.substring(5, 7), 16);
+        return `\u001b[38;2;${r};${g};${b}m`;
+    }
+
+    function progressBar(currentProgress, fullProgress, maxChar = 10) {
+        const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
+        return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(maxChar - progress)}\u2524 ${ns.formatPercent(currentProgress / fullProgress, 2)}`;
+    }
+
+    function fillWhitespaces(count = 0) {
+        return ' '.repeat(count);
     }
 }
 class Research {
