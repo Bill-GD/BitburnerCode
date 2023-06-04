@@ -1,5 +1,5 @@
-/** Version 2.5.1
- * Updated the progress bar
+/** Version 2.5.2
+ * Fixed checking saved aug count incorrectly
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -33,7 +33,7 @@ export async function main(ns) {
     chosenAugNames = chosenAugNames.filter(aug => graftableAugs.includes(aug)); // filters grafted/invalid augs
 
     let option;
-    if (chosenAugNames.length >= 1) {
+    if (chosenAugNames.length > 0) {
         ns.print(` ${colors.section}Current queue:`);
         chosenAugNames.forEach((aug, index) => {
             ns.print((index === chosenAugNames.length - 1 ? `  ${listHeaders.lastChild}` : `  ${listHeaders.middleChild}`)
@@ -90,7 +90,7 @@ export async function main(ns) {
         }
     }
 
-    if (chosenAugNames.length < 0 || option === 'Reset') {
+    if (chosenAugNames.length <= 0 || option === 'Reset') {
         const stringID = (await ns.prompt(
             'Write list of IDs to graft (separated by spaces)\n' +
             'IDs from the list of augmentations',

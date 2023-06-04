@@ -1,5 +1,5 @@
-/** Version 2.2.4
- * Added shorcut: Corporation
+/** Version 2.2.5
+ * Updated Corp shortcut
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -304,7 +304,7 @@ export async function main(ns) {
                 optionStates.sleeve = false;
             }
             if (optionStates.corp) {
-                ns.exec('corp_v1.js', 'home');
+                ns.exec('corp_v2.js', 'home');
                 optionStates.corp = false;
             }
             if (optionStates.runScript) {
