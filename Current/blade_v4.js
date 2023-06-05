@@ -1,6 +1,5 @@
-/** Version 4.9.2
- * Updated the progress bar
- * Now log the estimated increase of Rank & Skill Points
+/** Version 4.9.3
+ * Added more Black Ops checks
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -15,9 +14,9 @@ export async function main(ns) {
     };
 
     const colors = {
-        section: getANSIRGB_Text(ns.ui.getTheme().money),
-        header: getANSIRGB_Text(ns.ui.getTheme().hp),
-        value: getANSIRGB_Text(ns.ui.getTheme().white),
+        section: getColor(ns.ui.getTheme().money),
+        header: getColor(ns.ui.getTheme().hp),
+        value: getColor(ns.ui.getTheme().white),
     };
 
     const listHeaders = {
@@ -83,10 +82,10 @@ export async function main(ns) {
             }
         }
 
+        currentOp = getBestOp();
         if (currentOp !== '') {
             await checkCity();
             await performAction('op', currentOp, Math.trunc(Math.random() * 8 + 8)); // 8-15
-            currentOp = getBestOp();
         }
     }
 
@@ -95,7 +94,7 @@ export async function main(ns) {
         ns.clearLog();
 
         const city = blade.getCity();
-        let maxSkillWidth = 0;
+        let maxSkillWidth = Math.max('Rank'.length, 'Skill Points'.length);
         let skillCount = 0;
         blade.getSkillNames().forEach(skill => {
             if (skillLvl(skill) > 0) {
@@ -125,13 +124,14 @@ export async function main(ns) {
         ns.print(divider);
 
         const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
-        const spGainAvg = Math.trunc(rankGainAvg) / 3;
+        const spGainAvg = Math.trunc(rankGainAvg / 3) + ((currentRank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
         ns.print(` ${colors.section}Skills`);
-        ns.print(`  ${listHeaders.middleChild} Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 2)}` +
-            `${rankGainAvg > 0 ? ` -> ${getANSIRGB_Text('#00ff00')}${ns.formatNumber(rankGainAvg + currentRank, 2)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)}` : ''}`);
+        ns.print(`  ${listHeaders.middleChild} Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}` +
+            `${rankGainAvg > 0 ? ` -> ${getColor('#00ff00')}${ns.formatNumber(rankGainAvg + currentRank, 3)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)}` : ''}`);
         ns.print(`  ` + (skillCount > 0 ? `${listHeaders.middleChild}` : `${listHeaders.lastChild}`) +
             ` Skill Points:${fillWhitespaces(maxSkillWidth - 12)} ${colors.value}${ns.formatNumber(currentSP, 3)}` +
-            `${spGainAvg > 0 ? ` -> ${getANSIRGB_Text('#00ff00')}${Math.trunc(currentSP + spGainAvg)} \u00b1 ${Math.trunc((rankGain[1] / 3) - spGainAvg)}` : ''}`);
+            `${spGainAvg > 0 ? ` -> ${getColor('#00ff00')}${Math.trunc(currentSP + spGainAvg)} \u00b1` +
+                ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))}` : ''}`);
         blade.getSkillNames().forEach((skill, index) => {
             if (skillLvl(skill) > 0) {
                 const sp = requiredSP(skill);
@@ -139,8 +139,8 @@ export async function main(ns) {
                     (index !== 11 ? `  ${listHeaders.middleChild} ` : `  ${listHeaders.lastChild} `) +
                     `${skill}:${fillWhitespaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(skillLvl(skill), 3)} - ` +
                     (skill === 'Overclock' && skillLvl(skill) >= 90 ? 'MAX' :
-                        (blade.getSkillPoints() > sp ? `${getANSIRGB_Text('#00ff00')}`
-                            : `${getANSIRGB_Text('#ff0000')}`) + `${sp}`)
+                        (blade.getSkillPoints() >= sp ? `${getColor('#00ff00')}`
+                            : `${getColor('#ff0000')}`) + `${sp}`)
                 );
                 lineCount++;
             }
@@ -154,9 +154,9 @@ export async function main(ns) {
 
         const chance = successChance('blackop', currentBlackOp)[0];
         ns.print(` ${colors.section}Black Op:  ${colors.value}${currentBlackOp}`);
-        ns.print(`  ${listHeaders.middleChild} Chance: ${chance > chanceLimits.blackOp ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
+        ns.print(`  ${listHeaders.middleChild} Chance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
         ns.print(`  ${listHeaders.lastChild} Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} -` +
-            ` ${rankMet ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRank)}`);
+            ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRank)}`);
 
         ns.resizeTail((divider.length - 2) * 10, lineCount * 25 + 35);
     }
@@ -244,6 +244,12 @@ export async function main(ns) {
     */
     async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
         stamina && await checkStamina();
+        if (currentBlackOp === '') { // Daedalus is done
+            ns.alert(`=====  Operation Daedalus is accomplished  =====\n(!) Destroy this BitNode when you're ready (!)`);
+            blade.stopBladeburnerAction();
+            ns.closeTail();
+            ns.exit();
+        }
         for (let i = 0; i < count; i++) {
             // if (action === 'Field Analysis' || type === 'contract' || type === 'op' || type === 'blackop') {
             rankGain = [Infinity, 0];
@@ -328,6 +334,7 @@ export async function main(ns) {
     /** Perform the current blackop if ```chance === 100%``` and ```rank``` is sufficient. */
     async function checkBlackOps() {
         while (await ns.sleep(10)) {
+            currentBlackOp = getCurrentBlackOp();
             if (currentBlackOp === '') { // Daedalus is done
                 ns.alert(`=====  Operation Daedalus is accomplished  =====\n(!) Destroy this BitNode when you're ready (!)`);
                 blade.stopBladeburnerAction();
@@ -381,7 +388,7 @@ export async function main(ns) {
      * @param {string} colorHex color in hex format
      * @returns ```Unicode``` string for the color
      */
-    function getANSIRGB_Text(colorHex = '#ffffff') {
+    function getColor(colorHex = '#ffffff') {
         if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
         const r = parseInt(colorHex.substring(1, 3), 16);
         const g = parseInt(colorHex.substring(3, 5), 16);
@@ -416,6 +423,6 @@ export async function main(ns) {
      */
     function progressBar(currentProgress, fullProgress, maxChar = 10) {
         const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
-        return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(maxChar - progress)}\u2524`;
+        return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(Math.max(0, maxChar - progress))}\u2524`;
     }
 }

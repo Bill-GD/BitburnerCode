@@ -1,5 +1,5 @@
-/** Version 2.2.5
- * Updated Corp shortcut
+/** Version 2.2.6
+ * Added option to show current RAM info
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -80,6 +80,7 @@ export async function main(ns) {
         corp: false,
         runScript: false,
         traveling: false,
+        showRam: false,
         buyRam: false,
         reportMoney: false,
         clearTerminal: false,
@@ -196,6 +197,14 @@ export async function main(ns) {
         { innerHTML: 'Travel', style: { color: theme.combat } },
         'click', () => optionStates.traveling = true,
         hooks.hookAgi
+    );
+
+    // ram usage
+    createElement(
+        'button',
+        { innerHTML: 'Usage', style: { color: theme.cha } },
+        'click', () => optionStates.showRam = !optionStates.showRam,
+        hooks.hookCha
     );
 
     // buy ram
@@ -326,6 +335,17 @@ export async function main(ns) {
             if (optionStates.traveling) {
                 ns.exec('travel.js', 'home');
                 optionStates.traveling = false;
+            }
+            if (optionStates.showRam) {
+                const max = ns.getServerMaxRam('home'),
+                    used = ns.getServerUsedRam('home');
+                key = [...key, `Max`, `Used`, 'Free'];
+                value = [
+                    ...value,
+                    `${ns.formatRam(max, 2)}`,
+                    `${ns.formatRam(used, 2)}`,
+                    `${ns.formatRam(max - used, 2)}`,
+                ];
             }
             if (optionStates.buyRam) {
                 ns.exec('homeUpgrade.js', 'home');
