@@ -1,5 +1,6 @@
-/** Version 2.5.2
- * Fixed checking saved aug count incorrectly
+/** Version 2.5.3
+ * Removed unnecessary variable
+ * Added checks for progress bar
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -125,7 +126,6 @@ export async function main(ns) {
             break;
         default:
             ns.clearLog();
-            let lineCount = 1;
             let totalCost = 0;
             let totalTime = 0;
             let list = '';
@@ -140,7 +140,6 @@ export async function main(ns) {
                 maxWidth = Math.max(maxWidth, augLine.length);
                 const listHeader = index === chosenAugNames.length - 1 ? `${listHeaders.lastChild}` : `${listHeaders.middleChild}`;
                 list += augLine.replace('. ', `. ${colors.value}`).replace(' >', ` ${listHeader}`) + '\n';
-                lineCount++;
             });
 
             const currentWork = ns.singularity.getCurrentWork();
@@ -198,7 +197,7 @@ export async function main(ns) {
                         : `  >. ${aug}`;
                     maxWidth = Math.max(maxWidth, augLine.length);
                     const listHeader = index === chosenAugNames.length - 1 ? `${listHeaders.lastChild}` : `${listHeaders.middleChild}`;
-                    augList += augLine.replace('. ', i >= 0 ? `. ${colors.value}` : ` ${getColor('#00ff00')}`).replace(' >', ` ${listHeader}`) + '\n';
+                    augList += augLine.replace('. ', i >= 0 ? `. ${colors.value}` : ` ${getColor('#00ff00')} DONE `).replace(' >', ` ${listHeader}`) + '\n';
                 });
 
                 ns.run('graft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
@@ -298,6 +297,6 @@ export async function main(ns) {
 
     function progressBar(currentProgress, fullProgress, maxChar = 10) {
         const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
-        return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(maxChar - progress)}\u2524 ${ns.formatPercent(currentProgress / fullProgress, 2)}`;
+        return `\u251c${'\u2588'.repeat(Math.min(maxChar, progress))}${'\u2500'.repeat(Math.max(0, maxChar - progress))}\u2524 ${ns.formatPercent(currentProgress / fullProgress, 2)}`;
     }
 }

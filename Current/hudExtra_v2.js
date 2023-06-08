@@ -1,5 +1,5 @@
-/** Version 2.2.6
- * Added option to show current RAM info
+/** Version 2.2.7
+ * Now show the current BitNode level as well
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -9,6 +9,23 @@ export async function main(ns) {
     const getPlayer = () => ns.getPlayer();
 
     const doc = eval('document');
+
+    doc.querySelector('svg[aria-label="Stats"]').parentElement.click();
+
+    // get BitNode time
+    const labels = doc.getElementsByClassName('MuiTypography-root');
+    // get BitNode and level
+    let level = '';
+    for (const i in labels) {
+        const text = labels.item(i).textContent;
+        if (text.includes('BitNode') && text.includes('(Level')) {
+            level = text.split('(')[1].split(' ')[1].charAt(0);
+            break;
+        }
+    }
+    doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
+    ns.write('BN_Level.txt', level, 'w');
+
     const hooks = {
         hookHP: doc.getElementById('overview-hp-hook'),
         hookMoney: doc.getElementById('overview-money-hook'),
@@ -253,10 +270,13 @@ export async function main(ns) {
 
     buttons.forEach(bt => Object.assign(bt.style, { width: `${maxTextWidth * 10}px` }));
 
+    const currentBN = ns.getResetInfo().currentNode;
+    const currentBNLevel = ns.read('BN_Level.txt');
+
     while (await ns.sleep(10)) {
         try {
             let key = ['BitNode'];
-            let value = [ns.getResetInfo().currentNode];
+            let value = [`${currentBN}.${currentBNLevel}`];
 
             if (optionStates.player) {
                 const player = getPlayer();

@@ -1,14 +1,9 @@
-/** Version 2.0
- * Introduces Stages
- * - Separate what to do and what to buy and when
- * - Limit the amount of purchase done at a certain stage
- * Now purchases production boosting materials
- * Automatically purchase upgrades (with limit) and increase office size
- * 
- * Handles 2 industries/divisions
- * - Current sequence: Agri -money-> Upgrades -money-> Restaurant -money-> Upgrades
- * Debt after initialization: ~$14b -> takes time
- * Handles 2 rounds of investment: $1t & $50t
+/** Version 2.0.1
+ * Removed HR Researches
+ * Now use the recently fixed import 'IPROD' (have not tested yet)
+ * The funds needed to buy upgrades & AdVert gradually increases after a certain level
+ * Now use the new maxProducts property (the old one is flawed)
+ * Product rating is now the average of all cities
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -41,6 +36,7 @@ export async function main(ns) {
         BoostMaterial: {
             Agriculture1: [0, 100, 100, 35000],
             Agriculture2: [0, 130, 130, 45000],
+            Agriculture3: [0, 150, 150, 60000],
             Restaurant: [0, 0, 3000, 0],
             // Tobacco: [0, 0, 0, 0],
         },
@@ -109,8 +105,8 @@ export async function main(ns) {
             Drones: new Research('Drones', 'Hi-Tech R&D Laboratory'),
             DroneAssembly: new Research('Drones - Assembly', 'Drones'),
             DroneTransport: new Research('Drones - Transport', 'Drones'),
-            HRRecruit: new Research('HRBuddy-Recruitment', 'Hi-Tech R&D Laboratory'),
-            HRTraining: new Research('HRBuddy-Training', 'HRBuddy-Recruitment'),
+            // HRRecruit: new Research('HRBuddy-Recruitment', 'Hi-Tech R&D Laboratory'),
+            // HRTraining: new Research('HRBuddy-Training', 'HRBuddy-Recruitment'),
             MarketTA1: new Research('Market-TA.I', 'Hi-Tech R&D Laboratory'),
             MarketTA2: new Research('Market-TA.II', 'Market-TA.I'),
             Overclock: new Research('Overclock', 'Hi-Tech R&D Laboratory'),
@@ -146,13 +142,12 @@ export async function main(ns) {
             // upgrade stage after agri init
             else stage[0] = 1;
             break;
-        case 2:
-            // upgrade stage after restaurant init
-            if (corp.getUpgradeLevel(Enums.Upgrade.SmartFactories) <= 20) stage[0] = 3;
-            break;
+        // case 2:
+        //     // upgrade stage after restaurant init
+        //     if (corp.getUpgradeLevel(Enums.Upgrade.SmartFactories) <= 20) stage[0] = 3;
+        //     break;
     }
 
-    let MAX_PRODUCT_COUNT = 3;
     const researches = Object.values(Enums.Research);
     const upgrades = Object.values(Enums.Upgrade);
 
@@ -246,9 +241,9 @@ export async function main(ns) {
                     if (corp.getWarehouse(restaurantName, city).level < 2)
                         corp.upgradeWarehouse(restaurantName, city, 2);
                     corp.setSmartSupply(restaurantName, city, true);
-                    corp.exportMaterial(agricultureName, city, restaurantName, city, 'Food', 'MAX');
-                    // avoid filling storage while developing 1st product & losing money
-                    corp.sellMaterial(restaurantName, city, 'Food', 'MAX * 0.05', 'MP');
+                    corp.exportMaterial(restaurantName, city, agricultureName, city, 'Food', 'IPROD');
+                    corp.sellMaterial(agricultureName, city, 'Food', 'MAX', 'MP');
+                    // corp.sellMaterial(restaurantName, city, 'Food', '40', 'MP');
                 });
                 buyProductionMaterials();
 
@@ -256,12 +251,13 @@ export async function main(ns) {
                 break;
             case 3: // more upgrades
                 upgrades.forEach(upgrade => {
-                    if (corp.getUpgradeLevel(upgrade) < 20)
+                    // if (corp.getUpgradeLevel(upgrade) < 20)
+                    if (corp.getUpgradeLevelCost(upgrade) < getFunds() / Math.max(1, Math.log(corp.getUpgradeLevel(upgrade)) * 2.5 / Math.LN10))
                         try { corp.levelUpgrade(upgrade); } catch { }
                 });
 
                 getDivisions().forEach(division => {
-                    if (corp.getDivision(division).numAdVerts < 10)
+                    if (corp.getHireAdVertCost(division) < getFunds() / Math.max(1, Math.log(corp.getDivision(division).numAdVerts) * 2.5 / Math.LN10))
                         try { corp.hireAdVert(division); } catch { }
                 });
                 buyProductionMaterials();
@@ -298,6 +294,9 @@ export async function main(ns) {
                 boostMaterialCount = Enums.BoostMaterial.Agriculture2;
                 break;
             case 2:
+                division = agricultureName;
+                boostMaterialCount = Enums.BoostMaterial.Agriculture3;
+                break;
             case 3:
                 division = restaurantName;
                 boostMaterialCount = Enums.BoostMaterial.Restaurant;
@@ -309,7 +308,7 @@ export async function main(ns) {
         }
 
         Object.values(ns.enums.CityName).forEach(city => {
-            if (stage[0] === 1 && corp.getWarehouse(division, city).size < 400) return;
+            // if (stage[0] === 1 && corp.getWarehouse(division, city).size < 400) return;
             for (let i = 0; i < 4; i++) {
                 if (corp.getMaterial(division, city, boostMaterials[i]).stored < boostMaterialCount[i])
                     corp.buyMaterial(division, city, boostMaterials[i], 1);
@@ -370,9 +369,6 @@ export async function main(ns) {
                 if (corp.getDivision(division).researchPoints < corp.getResearchCost(division, research.name)) return;
 
                 corp.research(division, research.name);
-
-                if (research.name === Enums.Research.uCapacity1.name) MAX_PRODUCT_COUNT = 4;
-                if (research.name === Enums.Research.uCapacity2.name) MAX_PRODUCT_COUNT = 5;
             });
         } catch { }
     }
@@ -458,11 +454,11 @@ export async function main(ns) {
                 corp.sellProduct(division, city, divProducts.slice(-1)[0], 'MAX', 'MP', true);
             });
             // limit how often a product is created
-            if (getFunds() < 3e9 * 10) return;
+            if (getFunds() < 2e9 * 8) return;
         }
 
         // remove oldest product if max product is reached
-        if (divProducts.length >= MAX_PRODUCT_COUNT) {
+        if (divProducts.length >= corp.getDivision(division).maxProducts) {
             corp.discontinueProduct(division, divProducts[0]);
             divProducts = corp.getDivision(division).products;
         }
@@ -524,11 +520,14 @@ export async function main(ns) {
                 const totalProduct = info.products.length;
                 info.products.forEach((product, index) => {
                     const pInfo = corp.getProduct(div, ns.enums.CityName.Sector12, product);
+                    const avgEffRating = Object.values(ns.enums.CityName)
+                        .map(city => corp.getProduct(div, city, product).effectiveRating)
+                        .reduce((total, current) => total + current) / Object.values(ns.enums.CityName).length;
                     lines.push(`  ` + (index === totalProduct - 1 ? `l` : `m`) + ` Product: v${product}`);
                     const devProg = pInfo.developmentProgress;
                     if (devProg < 100) lines.push(`    l Development: v${ns.formatPercent(devProg / 100, 2)}`);
                     else {
-                        lines.push(`  ` + (index === totalProduct - 1 ? ` ` : `e`) + ` m Rating: v${ns.formatNumber(pInfo.effectiveRating, 3)}`);
+                        lines.push(`  ` + (index === totalProduct - 1 ? ` ` : `e`) + ` m Avg. Rating: v${ns.formatNumber(avgEffRating, 3)}`);
                         lines.push(`  ` + (index === totalProduct - 1 ? ` ` : `e`) + ` l Sell / Prod: v${ns.formatNumber(pInfo.actualSellAmount, 3)} / ${ns.formatNumber(pInfo.productionAmount, 3)}`);
                     }
                 });
