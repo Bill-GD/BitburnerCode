@@ -1,9 +1,6 @@
-/** Version 2.0.1
- * Removed HR Researches
- * Now use the recently fixed import 'IPROD' (have not tested yet)
- * The funds needed to buy upgrades & AdVert gradually increases after a certain level
- * Now use the new maxProducts property (the old one is flawed)
- * Product rating is now the average of all cities
+/** Version 2.0.2
+ * Improved production boosting materials purchase
+ * Increased warehouse allowance
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -35,8 +32,7 @@ export async function main(ns) {
     const Enums = {
         BoostMaterial: {
             Agriculture1: [0, 100, 100, 35000],
-            Agriculture2: [0, 130, 130, 45000],
-            Agriculture3: [0, 150, 150, 60000],
+            Agriculture2: [0, 150, 150, 60000],
             Restaurant: [0, 0, 3000, 0],
             // Tobacco: [0, 0, 0, 0],
         },
@@ -282,38 +278,39 @@ export async function main(ns) {
 
     /** Purchases Materials to boost production. */
     function buyProductionMaterials() {
-        let division = '';
-        let boostMaterialCount = [];
         switch (stage[0]) {
             case 0:
-                division = agricultureName;
-                boostMaterialCount = Enums.BoostMaterial.Agriculture1;
-                break;
             case 1:
-                division = agricultureName;
-                boostMaterialCount = Enums.BoostMaterial.Agriculture2;
+                checkProdMaterials(agricultureName, Enums.BoostMaterial.Agriculture1);
                 break;
             case 2:
-                division = agricultureName;
-                boostMaterialCount = Enums.BoostMaterial.Agriculture3;
-                break;
             case 3:
-                division = restaurantName;
-                boostMaterialCount = Enums.BoostMaterial.Restaurant;
+                checkProdMaterials(agricultureName, Enums.BoostMaterial.Agriculture2);
+                checkProdMaterials(restaurantName, Enums.BoostMaterial.Restaurant);
                 break;
             // case 4:
             //     division = tobaccoName;
             //     boostMaterialCount = Enums.BoostMaterial.Tobacco;
             //     break;
         }
+    }
 
+    /**
+     * Checks the number of stored materials, compare with the desired amount and buy if necessary.
+     * @param {string} division Name of the division.
+     * @param {number[]} boostMaterialCount The desired number of materials to buy.
+     */
+    function checkProdMaterials(division, boostMaterialCount) {
         Object.values(ns.enums.CityName).forEach(city => {
-            // if (stage[0] === 1 && corp.getWarehouse(division, city).size < 400) return;
             for (let i = 0; i < 4; i++) {
-                if (corp.getMaterial(division, city, boostMaterials[i]).stored < boostMaterialCount[i])
-                    corp.buyMaterial(division, city, boostMaterials[i], 1);
-                else
+                const stored = corp.getMaterial(division, city, boostMaterials[i]).stored;
+                if (stored < boostMaterialCount[i])
+                    corp.buyMaterial(division, city, boostMaterials[i], boostMaterialCount[i] / 100);
+                else {
                     corp.buyMaterial(division, city, boostMaterials[i], 0);
+                    if (stored > boostMaterialCount[i])
+                        corp.sellMaterial(division, city, boostMaterials[i], '1', 'MP');
+                }
             }
         });
     }
@@ -434,7 +431,7 @@ export async function main(ns) {
             .forEach(city => {
                 const info = corp.getWarehouse(division, city);
                 if (info.sizeUsed < info.size * 0.95) return;
-                if (corp.getUpgradeWarehouseCost(division, city, 1) < getFunds() * 0.01)
+                if (corp.getUpgradeWarehouseCost(division, city, 1) < getFunds())
                     corp.upgradeWarehouse(division, city, 1);
             });
     }
