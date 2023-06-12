@@ -150,7 +150,7 @@ export async function main(ns) {
 
     const files = ['hackScript.js', 'weaken.js', 'grow.js', 'hack.js'];
     for (const server of boughtServers) await handleServer(server);
-    for (let i = 0; i < eval('ns.hacknet').numNodes(); i++) await handleServer('hacknet-server-' + i);
+    // for (let i = 0; i < eval('ns.hacknet').numNodes(); i++) await handleServer('hacknet-server-' + i);
     
     async function handleServer(server) {
         ns.killall(server, true);
