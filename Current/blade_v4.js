@@ -1,5 +1,5 @@
-/** Version 4.9.3
- * Added more Black Ops checks
+/** Version 4.9.4
+ * Log when Daedalus is completed the 1st time to the Terminal
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -37,18 +37,14 @@ export async function main(ns) {
   const player = () => ns.getPlayer();
   const successChance = (type = '', name = '') => blade.getActionEstimatedSuccessChance(type, name);
   const populationOf = city => blade.getCityEstimatedPopulation(city);
-  const currentAction = () => blade.getCurrentAction();
-  const actionTime = (type = '', name = '') => blade.getActionTime(type, name);
   const currentTime = () => blade.getActionCurrentTime();
   const actionCount = (type = '', name = '') => blade.getActionCountRemaining(type, name);
   const requiredSP = skill => blade.getSkillUpgradeCost(skill);
-  const cityChaos = (city = '') => blade.getCityChaos(city);
-  const skillLvl = skill => blade.getSkillLevel(skill);
 
   // for chaos purpose
-  const stealthSuccessMult = () => skillLvl(`Cloak`) * 0.055 + 1;
-  const retirementSuccessMult = () => skillLvl(`Short-Circuit`) * 0.055 + 1;
-  const opSuccessMult = () => skillLvl(`Digital Observer`) * 0.04 + 1;
+  const stealthSuccessMult = () => blade.getSkillLevel(`Cloak`) * 0.055 + 1;
+  const retirementSuccessMult = () => blade.getSkillLevel(`Short-Circuit`) * 0.055 + 1;
+  const opSuccessMult = () => blade.getSkillLevel(`Digital Observer`) * 0.04 + 1;
 
   // const
   const cities = Object.keys(ns.enums.CityName).map(c => ns.enums.CityName[c]);
@@ -97,7 +93,7 @@ export async function main(ns) {
     let maxSkillWidth = Math.max('Rank'.length, 'Skill Points'.length);
     let skillCount = 0;
     blade.getSkillNames().forEach(skill => {
-      if (skillLvl(skill) > 0) {
+      if (blade.getSkillLevel(skill) > 0) {
         maxSkillWidth = Math.max(maxSkillWidth, skill.length);
         skillCount++;
       }
@@ -107,7 +103,7 @@ export async function main(ns) {
     const blackOpRank = blade.getBlackOpRank(currentBlackOp);
     const rankMet = currentRank > blackOpRank;
     const taskCount = actionCount(type, name);
-    const totalTime = actionTime(type, name);
+    const totalTime = blade.getActionTime(type, name);
     let lineCount = 21;
 
     ns.print(` ${colors.section}Current:    ${colors.value}${name} - ${count} / ${maxCount}`);
@@ -120,25 +116,25 @@ export async function main(ns) {
 
     ns.print(` ${colors.section}City:${fillWhitespaces(10)}${colors.value}${city}`);
     ns.print(`  ${listHeaders.middleChild} Population: ${colors.value}${ns.formatNumber(populationOf(city), 3)}`);
-    ns.print(`  ${listHeaders.lastChild} Chaos:      ${colors.value}${ns.formatNumber(cityChaos(city), 3)}`);
+    ns.print(`  ${listHeaders.lastChild} Chaos:      ${colors.value}${ns.formatNumber(blade.getCityChaos(city), 3)}`);
     ns.print(divider);
 
     const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
     const spGainAvg = Math.trunc(rankGainAvg / 3) + ((currentRank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
     ns.print(` ${colors.section}Skills`);
     ns.print(`  ${listHeaders.middleChild} Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}` +
-      `${rankGainAvg > 0 ? ` -> ${getColor('#00ff00')}${ns.formatNumber(rankGainAvg + currentRank, 3)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)}` : ''}`);
+      `${rankGainAvg > 0 ? ` -> ${ns.formatNumber(rankGainAvg + currentRank, 3)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)}` : ''}`);
     ns.print(`  ` + (skillCount > 0 ? `${listHeaders.middleChild}` : `${listHeaders.lastChild}`) +
       ` Skill Points:${fillWhitespaces(maxSkillWidth - 12)} ${colors.value}${ns.formatNumber(currentSP, 3)}` +
-      `${spGainAvg > 0 ? ` -> ${getColor('#00ff00')}${Math.trunc(currentSP + spGainAvg)} \u00b1` +
+      `${spGainAvg > 0 ? ` -> ${Math.trunc(currentSP + spGainAvg)} \u00b1` +
         ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))}` : ''}`);
     blade.getSkillNames().forEach((skill, index) => {
-      if (skillLvl(skill) > 0) {
+      if (blade.getSkillLevel(skill) > 0) {
         const sp = requiredSP(skill);
         ns.print(
           (index !== 11 ? `  ${listHeaders.middleChild} ` : `  ${listHeaders.lastChild} `) +
-          `${skill}:${fillWhitespaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(skillLvl(skill), 3)} - ` +
-          (skill === 'Overclock' && skillLvl(skill) >= 90 ? 'MAX' :
+          `${skill}:${fillWhitespaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(blade.getSkillLevel(skill), 3)} - ` +
+          (skill === 'Overclock' && blade.getSkillLevel(skill) >= 90 ? 'MAX' :
             (blade.getSkillPoints() >= sp ? `${getColor('#00ff00')}`
               : `${getColor('#ff0000')}`) + `${sp}`)
         );
@@ -211,7 +207,7 @@ export async function main(ns) {
     competence *= 1 + (0.75 * Math.pow(player().skills.intelligence, 0.8)) / 600;
     competence *= Math.min(1, blade.getStamina()[0] / (0.5 * blade.getStamina()[1]));
     competence *= Math.pow(populationOf(city) / 1e9, 0.7);
-    competence *= (skillLvl(`Blade's Intuition`) * 0.03 + 1);
+    competence *= (blade.getSkillLevel(`Blade's Intuition`) * 0.03 + 1);
     competence *= ((stealthSuccessMult() + retirementSuccessMult() * 2) / 3
       + (stealthSuccessMult() * 3 + retirementSuccessMult() + stealthSuccessMult() * retirementSuccessMult() * 2) * opSuccessMult() / 6) / 2;
     competence *= player().mults.bladeburner_success_chance;
@@ -226,7 +222,7 @@ export async function main(ns) {
     operations.forEach(op => opLevel += blade.getActionCurrentLevel('op', op));
     const averageActionLevel = (contractLevel / contracts.length + opLevel / operations.length) / 2;
 
-    const chaos = cityChaos(city);
+    const chaos = blade.getCityChaos(city);
     let chaosBonus = chaos > 50 ? Math.pow(chaos - 49, 0.5) : 1;
 
     return 100 * Math.pow((1.03 + 1.044) / 2, averageActionLevel - 1) * chaosBonus;
@@ -263,10 +259,10 @@ export async function main(ns) {
       if (rankGain[0] === Infinity) rankGain[0] = 0;
 
       if (blade.startAction(type, action)) {
-        const totalTime = actionTime(type, action);
+        const totalTime = blade.getActionTime(type, action);
         let current = currentTime();
         while (current < totalTime) {
-          logAction(currentAction().type, currentAction().name, i + 1, count);
+          logAction(blade.getCurrentAction().type, blade.getCurrentAction().name, i + 1, count);
           await ns.sleep(1e3);
           current = currentTime();
           if (blade.getBonusTime() <= 1e3 && current === 0) break;
@@ -293,14 +289,14 @@ export async function main(ns) {
 
     const chosenSkills = [];
     skillIndex.forEach(i => {
-      if (i === 5 && skillLvl(allSkills[i]) >= 90) return;
+      if (i === 5 && blade.getSkillLevel(allSkills[i]) >= 90) return;
       chosenSkills.push(allSkills[i]);
     });
 
     chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
 
     while (blade.getSkillPoints() >= requiredSP(chosenSkills[0])) {
-      if (chosenSkills[0] === 'Overclock' && skillLvl(chosenSkills[0]) >= 90)
+      if (chosenSkills[0] === 'Overclock' && blade.getSkillLevel(chosenSkills[0]) >= 90)
         chosenSkills.splice(0, 1);
       blade.upgradeSkill(chosenSkills[0]);
       chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
@@ -322,7 +318,7 @@ export async function main(ns) {
    */
   async function checkChaos() {
     const currentCity = blade.getCity();
-    const chaos = cityChaos(currentCity);
+    const chaos = blade.getCityChaos(currentCity);
     if (chaos <= 50) return;
 
     if (chaos > getChaosThreshold(currentCity, 0.3)) {
@@ -333,12 +329,22 @@ export async function main(ns) {
 
   /** Perform the current blackop if ```chance === 100%``` and ```rank``` is sufficient. */
   async function checkBlackOps() {
+    currentBlackOp = getCurrentBlackOp();
     while (await ns.sleep(10)) {
-      currentBlackOp = getCurrentBlackOp();
       if (currentBlackOp === '') { // Daedalus is done
         ns.alert(`=====  Operation Daedalus is accomplished  =====\n(!) Destroy this BitNode when you're ready (!)`);
         blade.stopBladeburnerAction();
         ns.closeTail();
+        // Log the time of the Daedalus completion to terminal
+        // Only if Daedalus is actually performed, not just finished
+        const time = new Date();
+        ns.tprintf(
+          `\n(!) Finished Daedalus at: ` +
+          `${time.getHours() < 10 ? '0' : ''}${time.getHours()}:` +
+          `${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}:` +
+          `${time.getSeconds() < 10 ? '0' : ''}${time.getSeconds()}`,
+          0
+        );
         ns.exit();
       }
       if (blade.getRank() < blade.getBlackOpRank(currentBlackOp)) return;

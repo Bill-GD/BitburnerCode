@@ -2,7 +2,7 @@
 export async function main(ns) {
   if (!(await ns.prompt(
     `Upgrade RAM: ${ns.formatRam(ns.getServer('home').maxRam, 2)} -> ${ns.formatRam(ns.getServer('home').maxRam * 2, 2)}\n` +
-    `Cost: ${ns.formatNumber(ns.singularity.getUpgradeHomeRamCost(), 1)}`
+    `Cost: $${ns.formatNumber(ns.singularity.getUpgradeHomeRamCost(), 3)}`
   ))) ns.exit();
 
   try {
