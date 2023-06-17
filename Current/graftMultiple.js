@@ -1,6 +1,5 @@
-/** Version 2.5.3
- * Removed unnecessary variable
- * Added checks for progress bar
+/** Version 2.5.4
+ * Improved logging color & code
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -38,7 +37,7 @@ export async function main(ns) {
     ns.print(` ${colors.section}Current queue:`);
     chosenAugNames.forEach((aug, index) => {
       ns.print((index === chosenAugNames.length - 1 ? `  ${listHeaders.lastChild}` : `  ${listHeaders.middleChild}`)
-        + ` ${graftableAugs.indexOf(aug)}. ${colors.value}${aug} - $${ns.formatNumber(augGraftCost(aug), 2)}`
+        + ` ${graftableAugs.indexOf(aug)}. ${colors.value}${aug} - ${colors.section}$${ns.formatNumber(augGraftCost(aug), 2)}`
       );
     });
 
@@ -56,7 +55,8 @@ export async function main(ns) {
         ))
           .split(' ')
           .filter(id => !isNaN(parseInt(id)) && id < graftableAugs.length)
-          .map(id => parseInt(id));
+          .map(id => parseInt(id))
+          .filter(id => augGraftCost(graftableAugs[id]) < ns.getServerMoneyAvailable('home'));
         chosenAugIDs = [...new Set(
           [...chosenAugIDs, ...stringID]
             .map(id => parseInt(id))
@@ -136,10 +136,13 @@ export async function main(ns) {
       chosenAugNames.forEach((aug, index) => {
         totalCost += augGraftCost(aug);
         totalTime += graftTime(aug);
-        const augLine = `  > ${graftableAugs.indexOf(aug)}. ${aug} - $${ns.formatNumber(augGraftCost(aug), 2)}`;
+        const augLine = `  > ${graftableAugs.indexOf(aug)}. ${aug} - s$${ns.formatNumber(augGraftCost(aug), 2)}`;
         maxWidth = Math.max(maxWidth, augLine.length);
         const listHeader = index === chosenAugNames.length - 1 ? `${listHeaders.lastChild}` : `${listHeaders.middleChild}`;
-        list += augLine.replace('. ', `. ${colors.value}`).replace(' >', ` ${listHeader}`) + '\n';
+        list += augLine
+          .replace('. ', `. ${colors.value}`)
+          .replace(' >', ` ${listHeader}`)
+          .replace(' s', ` ${colors.section}`) + '\n';
       });
 
       const currentWork = ns.singularity.getCurrentWork();
@@ -193,11 +196,15 @@ export async function main(ns) {
         chosenAugNames.forEach((aug, index) => {
           const i = getGraftableAugs().indexOf(aug);
           const augLine = i >= 0
-            ? `  > ${i}. ${aug} - $${ns.formatNumber(augGraftCost(aug), 2)}`
+            ? `  > ${i}. ${aug} - s$${ns.formatNumber(augGraftCost(aug), 2)}`
             : `  >. ${aug}`;
           maxWidth = Math.max(maxWidth, augLine.length);
           const listHeader = index === chosenAugNames.length - 1 ? `${listHeaders.lastChild}` : `${listHeaders.middleChild}`;
-          augList += augLine.replace('. ', i >= 0 ? `. ${colors.value}` : ` ${getColor('#00ff00')}\u2705 `).replace(' >', ` ${listHeader}`) + '\n';
+          augList += augLine
+            .replace('. ', i >= 0 ? `. ${colors.value}` : ` ${getColor('#00ff00')}\u2705 `)
+            .replace(' >', ` ${listHeader}`)
+            .replace(' s', ` ${colors.section}`)
+            + '\n';
         });
 
         ns.run('graft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
@@ -257,7 +264,7 @@ export async function main(ns) {
 
     ns.print('\n' + generalInfo);
 
-    ns.resizeTail(Math.max(250, maxWidth * 10), 25 * (lineCount + 9) + 25);
+    ns.resizeTail(Math.max(250, maxWidth * 10), 25 * (lineCount + 9) + 15);
   }
 
   /** 

@@ -1,5 +1,5 @@
-/** Version 2.2.1
- * Added sorting for hacknet-related augmentations
+/** Version 2.2.2
+ * Improved logging color & code
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -13,9 +13,9 @@ export async function main(ns) {
   ]);
 
   const colors = {
-    section: getANSIRGB_Text(ns.ui.getTheme().money),
-    header: getANSIRGB_Text(ns.ui.getTheme().hp),
-    value: getANSIRGB_Text(ns.ui.getTheme().white),
+    section: getColor(ns.ui.getTheme().money),
+    header: getColor(ns.ui.getTheme().hp),
+    value: getColor(ns.ui.getTheme().white),
   };
   const listHeaders = {
     middleChild: `${colors.header}\u251C`,
@@ -67,8 +67,8 @@ export async function main(ns) {
       Object.entries(graftableAugs).forEach(([id, name]) => {
         const cost = augGraftCost(name);
         const hasEnoughMoney = checkMoney(cost);
-        const checkColor = hasEnoughMoney ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`;
-        const info = `${checkColor} ${id}. ${colors.value}${name} - $${ns.formatNumber(cost, 1)} - ${checkColor}${hasEnoughMoney.toString().toUpperCase()}\n`;
+        const checkColor = hasEnoughMoney ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`;
+        const info = `${checkColor} ${id}. ${colors.value}${name} - ${getColor(ns.ui.getTheme().money)}$${ns.formatNumber(cost, 3)}${colors.value} - ${checkColor}${hasEnoughMoney.toString().toUpperCase()}\n`;
         if (sortOption === 'none') {
           ns.print(info);
           // ns.tprintf(info);
@@ -114,7 +114,7 @@ export async function main(ns) {
       ns.printf(`${colors.section}` + nameLine.replace(': ', `: ${colors.value}`));
       const money = checkMoney(augGraftCost(chosenAug));
       ns.printf(`${colors.section} Cost:` +
-        (money ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`) + ` $${ns.formatNumber(augGraftCost(chosenAug), 3)}\n\n`);
+        (money ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + ` $${ns.formatNumber(augGraftCost(chosenAug), 3)}\n\n`);
 
       let prereq = ns.singularity.getAugmentationPrereq(chosenAug);
       if (prereq.length !== 0) {
@@ -125,7 +125,7 @@ export async function main(ns) {
           const owned = ns.singularity.getOwnedAugmentations().includes(aug);
           const preLine = `  > ${aug}`;
           ns.printf(preLine
-            .replace('>', header + (owned ? `${getANSIRGB_Text('#00ff00')}` : `${getANSIRGB_Text('#ff0000')}`))
+            .replace('>', header + (owned ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`))
           );
           maxWidth = Math.max(maxWidth, preLine.length);
         });
@@ -136,7 +136,7 @@ export async function main(ns) {
       let stats = Object.entries(getAugStats(chosenAug)).filter(([type, mult]) => mult !== 1);
       if (stats.length === 0) {
         maxWidth = Math.max(maxWidth, ` INFO: This aug doesn't have any specific stat`.length);
-        ns.printf(`${getANSIRGB_Text('#0099ff')} This aug doesn't have any specific stat`);
+        ns.printf(`${getColor('#0099ff')} This aug doesn't have any specific stat`);
       }
       else {
         ns.printf(`${colors.section} Stats`);
@@ -171,16 +171,16 @@ export async function main(ns) {
 
       let focus = !ns.singularity.getOwnedAugmentations().includes("Neuroreceptor Management Implant");
 
-      if (checkMoney(augGraftCost(chosenAug) + 2e5) === false) {
+      if (!checkMoney(augGraftCost(chosenAug))) {
         ns.alert(` (!) You don't have enough money to graft: ${chosenAug}`);
-        ns.printf(`${getANSIRGB_Text('#0099ff')} Missing: $${ns.formatNumber(augGraftCost(chosenAug) - player().money, 1)}`);
+        ns.printf(`${getColor('#0099ff')} Missing: $${ns.formatNumber(augGraftCost(chosenAug) - player().money, 1)}`);
         ns.exit();
       }
 
       if (player().city !== "New Tokyo")
         if (player().money - augGraftCost(chosenAug) > 2e5) ns.singularity.travelToCity("New Tokyo");
         else {
-          ns.printf(`${getANSIRGB_Text('#ff0000')} You don't have enough money to travel to New Tokyo`);
+          ns.printf(`${getColor('#ff0000')} You don't have enough money to travel to New Tokyo`);
           ns.exit();
         }
       if (graft.graftAugmentation(chosenAug, focus) === true) {
@@ -221,7 +221,7 @@ export async function main(ns) {
     return isMisc;
   }
 
-  function getANSIRGB_Text(colorHex = '#ffffff') {
+  function getColor(colorHex = '#ffffff') {
     if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
     const r = parseInt(colorHex.substring(1, 3), 16);
     const g = parseInt(colorHex.substring(3, 5), 16);
