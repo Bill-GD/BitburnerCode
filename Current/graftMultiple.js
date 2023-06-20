@@ -1,5 +1,8 @@
-/** Version 2.5.4
- * Improved logging color & code
+/** Version 2.6
+ * Augs are now ordered differently:
+ * - By ID: high -> low
+ * - By prerequisites: Augs with all prerequisites owned/chosen will be grafted
+ * - Special augs are prioritized
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -32,7 +35,7 @@ export async function main(ns) {
   let chosenAugNames = ns.read(fileName).split('\n');
   chosenAugNames = chosenAugNames.filter(aug => graftableAugs.includes(aug)); // filters grafted/invalid augs
 
-  let option;
+  let option, chosenAugIDs;
   if (chosenAugNames.length > 0) {
     ns.print(` ${colors.section}Current queue:`);
     chosenAugNames.forEach((aug, index) => {
@@ -46,7 +49,7 @@ export async function main(ns) {
       { 'type': 'select', 'choices': ['Reset', 'Add', 'Remove'] }
     );
     if (option !== 'Reset') {
-      let chosenAugIDs = chosenAugNames.map(aug => graftableAugs.findIndex(a => a === aug));
+      chosenAugIDs = chosenAugNames.map(aug => graftableAugs.findIndex(a => a === aug));
       if (option === 'Add') {
         const stringID = (await ns.prompt(
           'Current list of IDs -> check tail\n\n' +
@@ -85,9 +88,6 @@ export async function main(ns) {
           .map(id => parseInt(id))
           .sort((a, b) => b - a);
       }
-
-      chosenAugNames = chosenAugIDs.map((id) => graftableAugs[id]);
-      chosenAugNames = chosenAugNames.filter(aug => checkPrereq(aug));
     }
   }
 
@@ -103,15 +103,17 @@ export async function main(ns) {
     if (stringID.length === 0) ns.exit();
 
     // filters duplicates from user input
-    const chosenAugIDs = [...new Set(
+    chosenAugIDs = [...new Set(
       stringID
         .map(id => parseInt(id))
         .filter(id => id < graftableAugs.length)
         .sort((a, b) => b - a)
     )];
-    chosenAugNames = chosenAugIDs.map((id) => graftableAugs[id]);
-    chosenAugNames = chosenAugNames.filter(aug => checkPrereq(aug));
   }
+
+  chosenAugNames = chosenAugIDs.map(id => graftableAugs[id]);
+  chosenAugNames = chosenAugNames.sort((a, b) => graftableAugs.indexOf(b) - graftableAugs.indexOf(a));
+  organizeAugs();
 
   let maxWidth = 0;
   switch (chosenAugNames.length) {
@@ -292,6 +294,66 @@ export async function main(ns) {
       }
     });
     return result;
+  }
+
+  /** Re-organize the list of aug names. */
+  function organizeAugs() {
+    const specialAugs = [
+      `The Blade's Simulacrum`,
+      'Neuroreceptor Management Implant',
+      'nickofolas Congruity Implant',
+    ];
+    const standAlone = [], lastUpgrades = [], prereqs = [], others = [];
+
+    // split into 3 types
+    chosenAugNames.forEach(aug => {
+      if (findLastUpgradeAug(aug) === null) {
+        if (ns.singularity.getAugmentationPrereq(aug).length > 0) lastUpgrades.push(aug);
+        else standAlone.push(aug);
+      }
+      else others.push(aug);
+    });
+
+    // separate prereqs from 'others'
+    lastUpgrades.forEach(lastAug => {
+      for (const pre of ns.singularity.getAugmentationPrereq(lastAug).reverse())
+        if (!getOwned().includes(pre))
+          if (others.includes(pre)) {
+            prereqs.push(pre);
+            others.splice(others.indexOf(pre), 1);
+          }
+    });
+
+    let reorderedAugs = [];
+    // prioritize special augs
+    specialAugs.forEach(s => {
+      if (chosenAugNames.includes(s)) {
+        reorderedAugs.push(s);
+        chosenAugNames.splice(chosenAugNames.indexOf(s), 1);
+      }
+    });
+
+    chosenAugNames.forEach(aug => {
+      if (standAlone.includes(aug)) reorderedAugs.push(aug);
+      else if (lastUpgrades.includes(aug)) {
+        for (const pre of ns.singularity.getAugmentationPrereq(aug).reverse())
+          if (!getOwned().includes(pre) && prereqs.includes(pre)) reorderedAugs.push(pre);
+        reorderedAugs.push(aug);
+      }
+      else if (others.includes(aug)) reorderedAugs.push(aug);
+    });
+
+    chosenAugNames = reorderedAugs;
+  }
+
+  /** Find the last aug of ```prereq``` upgrade tree.
+   * @param {string} prereq Name of the augmentation.
+   * @return {string} Name of the last upgrade of ```prereq```.
+   */
+  function findLastUpgradeAug(prereq) {
+    const upgrades = getGraftableAugs().filter(aug => ns.singularity.getAugmentationPrereq(aug).includes(prereq));
+    if (upgrades.length === 0) return null;
+    return upgrades.sort((a, b) => ns.singularity.getAugmentationPrereq(b).length - ns.singularity.getAugmentationPrereq(a).length)[0];
   }
 
   function getColor(colorHex = '#ffffff') {

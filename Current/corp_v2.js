@@ -1,10 +1,9 @@
-/** Version 2.2.1 (2.2 part 2)
- * Added support for Market-TA
- * Main loop functions now loop through every division instead of just a specific division
- * Removed unnecessary enum data
- * No longer hire/has Intern when AutoBrew & AutoPartyManagement is researched
- * 'Stage' reverted to a number (was array)
- * Now try to balance office size of all cities
+/** Version 2.3
+ * Improved Corporation start sequence
+ * Investment related functions now handle reassigning employees (increases sale)
+ * Improved Investment fraud handling
+ * Now tries to get the highest possible Investment funds
+ * Now tries to balance max employee count & max storage of all cities
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -36,7 +35,7 @@ export async function main(ns) {
     hardwareName = 'BHardware',
     waterName = 'BWater';
 
-  let desiredInvestFunds = 15e11;
+  let desiredInvestFunds = 2e12;
 
   const Enums = {
     BoostMaterial: {
@@ -128,15 +127,22 @@ export async function main(ns) {
   };
 
   if (!corp.hasCorporation()) {
-    if (!(await ns.prompt('Create a new Corporation?' + `You have $${ns.formatNumber(ns.getServerMoneyAvailable('home'))} / $150b`)))
-      ns.exit();
-    if (ns.getServerMoneyAvailable('home') < 150e9) {
-      ns.alert('Not enough money');
-      ns.closeTail();
-      ns.exit();
-    }
-    try { corp.createCorporation('BillCorp', false); } catch { }
-    try { corp.createCorporation('BillCorp', true); } catch { }
+    try {
+      corp.createCorporation('BillCorp', false);
+    } catch { }
+    try {
+      if (!(await ns.prompt(
+        'Create a new Corporation?\n' +
+        `You have $${ns.formatNumber(ns.getServerMoneyAvailable('home'))} / $150b`
+      )))
+        ns.exit();
+      if (ns.getServerMoneyAvailable('home') < 150e9) {
+        ns.alert('Not enough money');
+        ns.closeTail();
+        ns.exit();
+      }
+      corp.createCorporation('BillCorp', true);
+    } catch { }
   }
 
   const corpInfo = () => corp.getCorporation();
@@ -149,6 +155,7 @@ export async function main(ns) {
   if (getDivisions().includes(waterName)) stage = 4;
 
   let isTrickingInvestor = false;
+  let prevCycleInvestment = 0;
 
   const researches = Object.values(Enums.Research);
   const upgrades = Object.values(Enums.Upgrade);
@@ -172,30 +179,30 @@ export async function main(ns) {
     checkProductionMaterials();
     // * current: purchase
     if (corpInfo().state === Enums.CorpState.Production) {
-      hireNewEmployees();
-      handleIntern();
+      upgradeOffices();
       log(Enums.CorpState.Purchase);
     }
     while (corpInfo().state === Enums.CorpState.Production) await ns.sleep(10);
 
     // * current: production
     if (corpInfo().state === Enums.CorpState.Export) {
-      upgradeOffices();
+      hireNewEmployees();
+      handleIntern();
       log(Enums.CorpState.Production);
     }
     while (corpInfo().state === Enums.CorpState.Export) await ns.sleep(10);
 
     // * current: export
     if (corpInfo().state === Enums.CorpState.Sale) {
-      handleWarehouse();
+      handleMarketTA();
       log(Enums.CorpState.Export);
     }
     while (corpInfo().state === Enums.CorpState.Sale) await ns.sleep(10);
 
     // * current: sale
     if (corpInfo().state === Enums.CorpState.Start) {
+      handleWarehouse();
       handleResearch();
-      handleMarketTA();
       log(Enums.CorpState.Sale);
     }
     while (corpInfo().state === Enums.CorpState.Start) await ns.sleep(10);
@@ -229,7 +236,7 @@ export async function main(ns) {
         if (getFunds() > 1e12)
           stage = 2;
         break;
-      case 2: // expand to chemical, tobacco & water utils
+      case 2: // expand to chemical & tobacco
         try { corp.purchaseUnlock(Enums.Unlock.Export); } catch { }
 
         initDivision(Enums.IndustryType.Chemical, chemicalName);
@@ -369,7 +376,7 @@ export async function main(ns) {
     const upgradesStage1 = upgrades.slice(0, 5);
     for (let i = 0; i < 2; i++)
       upgradesStage1.forEach(up => {
-        if (corp.getUpgradeLevel(up) < 2)
+        if (corp.getUpgradeLevel(up) < 2 && getFunds() > corp.getUpgradeLevelCost(up))
           try { corp.levelUpgrade(up); } catch { }
       });
   }
@@ -387,9 +394,9 @@ export async function main(ns) {
         try { corp.hireAdVert(division); } catch { }
 
       Object.values(ns.enums.CityName).forEach(city => {
-        if (!corp.getDivision(division).cities.includes(city) && getFunds() > 4e9)
+        if (!corp.getDivision(division).cities.includes(city) && getFunds() >= 4e9)
           corp.expandCity(division, city);
-        if (!corp.hasWarehouse(division, city)) {
+        if (!corp.hasWarehouse(division, city) && getFunds() >= 5e9) {
           corp.purchaseWarehouse(division, city);
         }
         corp.setSmartSupply(division, city, true);
@@ -540,11 +547,22 @@ export async function main(ns) {
 
   /** Handles the warehouse size upgrade of every division. */
   function handleWarehouse() {
+    if (isTrickingInvestor) return;
     getDivisions().forEach(division => {
       Object.values(ns.enums.CityName).forEach(city => {
-        // const info = corp.getWarehouse(division, city);
-        // if (info.sizeUsed < info.size * 0.95) return;
-        if (corp.getUpgradeWarehouseCost(division, city, 1) < getFunds() * 0.75)
+        const info = corp.getWarehouse(division, city);
+
+        const minSize = Math.min(
+          ...new Set(
+            getDivisions().map(
+              d => Object.values(ns.enums.CityName).map(c => corp.getWarehouse(d, c).size)
+            ).reduce((acc, e) => [...acc, ...e], [])
+          )
+        );
+        // if storage won't be full soon or total size exceeds minSize, skips
+        if (info.sizeUsed < info.size * 0.99 && info.size > minSize) return;
+
+        if (corp.getUpgradeWarehouseCost(division, city, 1) < getFunds() * 0.6)
           corp.upgradeWarehouse(division, city, 1);
       });
     });
@@ -552,11 +570,13 @@ export async function main(ns) {
 
   /** Handles the creation of new product for any division that can make product. */
   function handleProduct() {
+    const designInvest = 5e8,
+      advInvest = 1e8;
     getDivisions().forEach(division => {
       if (!corp.getDivision(division).makesProducts) return;
       let divProducts = corp.getDivision(division).products;
       // 1st product
-      if (divProducts.length <= 0 && getFunds() < 2e9) return;
+      if (divProducts.length <= 0 && getFunds() < designInvest + advInvest) return;
       // later products
       if (divProducts.length > 0) {
         // only start next product if previous product is fully developed
@@ -565,7 +585,7 @@ export async function main(ns) {
           corp.sellProduct(division, city, divProducts.slice(-1)[0], 'MAX', 'MP', true);
         });
         // limit how often a product is created
-        if (getFunds() < 2e9 * 4) return;
+        if (getFunds() < (designInvest + advInvest) * 4) return;
       }
 
       // remove oldest product if max product is reached
@@ -579,7 +599,7 @@ export async function main(ns) {
           ? '0'
           : `${parseInt(divProducts.slice(-1)[0].split('-')[1]) + 1}`);
 
-      corp.makeProduct(division, ns.enums.CityName.Aevum, newProduct, 1e9, 1e9);
+      corp.makeProduct(division, ns.enums.CityName.Aevum, newProduct, designInvest, advInvest);
     });
   }
 
@@ -588,32 +608,72 @@ export async function main(ns) {
     const investOffer = corp.getInvestmentOffer();
     switch (investOffer.round) { // the round currently in, not done
       case 1:
-        if (investOffer.funds + getFunds() < desiredInvestFunds) return;
-        corp.acceptInvestmentOffer();
-        isTrickingInvestor = false; // enables purchasing materials again after accepting Investment
-        Object.values(ns.enums.CityName).forEach(city => {
-          corp.sellMaterial(agricultureName, city, 'Real Estate', '0', '0');
-        });
+        desiredInvestFunds = 2e12;
         break;
       case 2:
         desiredInvestFunds = 25e12;
-        if (investOffer.funds + getFunds() < desiredInvestFunds) return;
-        isTrickingInvestor = false;
-        corp.acceptInvestmentOffer();
         break;
-      // placeholder for now \/
       case 3:
         desiredInvestFunds = 1e15;
-        if (investOffer.funds + getFunds() < desiredInvestFunds) return;
-        isTrickingInvestor = false;
-        corp.acceptInvestmentOffer();
         break;
-      case 4:
-        desiredInvestFunds = 25e15;
-        if (investOffer.funds + getFunds() < desiredInvestFunds) return;
-        isTrickingInvestor = false;
-        corp.acceptInvestmentOffer();
+      // case 4:
+      //   desiredInvestFunds = 25e15;
+      //   break;
+    }
+
+    // if resulting funds is less than desired, returns
+    if (investOffer.funds + getFunds() < desiredInvestFunds) return;
+
+    // only continue waiting if gain/cycle is good (>0.1%)
+    if (prevCycleInvestment - investOffer.funds > prevCycleInvestment * 0.001) {
+      prevCycleInvestment = investOffer.funds;
+      return;
+    }
+
+    corp.acceptInvestmentOffer();
+    isTrickingInvestor = false;
+    prevCycleInvestment = 0;
+
+    // after accepting the investment
+    if (!isTrickingInvestor)
+      getDivisions().forEach(division => {
+        Object.values(ns.enums.CityName).forEach(city => {
+          const info = corp.getOffice(division, city);
+          switch (info.size) {
+            case 3:
+              corp.setAutoJobAssignment(division, city, Enums.Job.Business, 1);
+              corp.setAutoJobAssignment(division, city, Enums.Job.Operations, 1);
+              corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, 1);
+              break;
+            case 6:
+              corp.setAutoJobAssignment(division, city, Enums.Job.Business, 1);
+              corp.setAutoJobAssignment(division, city, Enums.Job.Operations, 2);
+              corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, 1);
+              corp.setAutoJobAssignment(division, city, Enums.Job.Management, 1);
+              corp.setAutoJobAssignment(division, city, Enums.Job.RandD, 1);
+              break;
+            default:
+              corp.setAutoJobAssignment(division, city, Enums.Job.Business, info.size * (1 / 9));
+              corp.setAutoJobAssignment(division, city, Enums.Job.Operations, info.size * (2 / 9));
+              corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, info.size * (2 / 9));
+              corp.setAutoJobAssignment(division, city, Enums.Job.Management, info.size * (1 / 9));
+              corp.setAutoJobAssignment(division, city, Enums.Job.RandD, info.size * (1 / 9));
+              corp.setAutoJobAssignment(division, city, Enums.Job.Intern, info.size * (2 / 9));
+          }
+        });
+      });
+    
+    // updates desired funds for next round
+    switch (investOffer.round) { // the round currently in, not done
+      case 2:
+        desiredInvestFunds = 25e12;
         break;
+      case 3:
+        desiredInvestFunds = 1e15;
+        break;
+      // case 4:
+      //   desiredInvestFunds = 25e15;
+      //   break;
     }
   }
 
@@ -622,34 +682,50 @@ export async function main(ns) {
    * * Might expand if Investment fraud is also useful afterwards.
    */
   function handleInvestFraud() {
-    let divisions = [];
-    switch (stage) {
-      case 1:
-        divisions = [agricultureName];
-        break;
-      case 3:
-        divisions = getDivisions();
-        for (const div of divisions) {
-          if (corp.getDivision(div).makesProducts) {
-            const allProducts = corp.getDivision(div).products;
-            if (allProducts.length === 0) return;
-            if (allProducts.length === 1 && corp.getProduct(allProducts[0], ns.enums.CityName.Aevum).developmentProgress < 100) return;
-          }
-        }
-        break;
-    }
+    if (stage !== 1 && stage !== 3) return;
 
-    divisions.forEach(division => {
-      Object.values(ns.enums.CityName).forEach(city => {
-        // check for Real Estate
-        const warehouseSize = corp.getWarehouse(division, city).size;
-        const stored = corp.getMaterial(division, city, 'Real Estate').stored;
-        if (stored === Enums.BoostMaterial[corp.getDivision(division).type][3] * warehouseSize * 200) {
-          isTrickingInvestor = true;
-          corp.sellMaterial(division, city, 'Real Estate', 'MAX', 'MP');
+    let divisions = getDivisions();
+    // if there're no product when can produce or not yet developed at least 1, skip
+    if (stage === 3)
+      for (const div of divisions)
+        if (corp.getDivision(div).makesProducts) {
+          const allProducts = corp.getDivision(div).products;
+          if (allProducts.length === 0) return;
+          if (allProducts.length === 1 && corp.getProduct(div, ns.enums.CityName.Aevum, allProducts[0]).developmentProgress < 100) return;
         }
+
+    for (const division of divisions) {
+      // if boost material purchase is not done, skip fraud this cycle
+      for (const city of Object.values(ns.enums.CityName)) {
+        const warehouseSize = corp.getWarehouse(division, city).size;
+        for (const m of boostMaterials) {
+          const index = boostMaterials.indexOf(m);
+          const stored = corp.getMaterial(division, city, m).stored;
+          if (stored < Enums.BoostMaterial[corp.getDivision(division).type][index] * warehouseSize * boostMaterialRatio[index])
+            return;
+        }
+      }
+
+      Object.values(ns.enums.CityName).forEach(city => {
+        const info = corp.getOffice(division, city);
+
+        if (info.numEmployees !== 0) {
+          corp.setAutoJobAssignment(division, city, Enums.Job.Operations, 0);
+          corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, 0);
+          corp.setAutoJobAssignment(division, city, Enums.Job.Management, 0);
+          corp.setAutoJobAssignment(division, city, Enums.Job.RandD, 0);
+          corp.setAutoJobAssignment(division, city, Enums.Job.Intern, 0);
+          corp.setAutoJobAssignment(division, city, Enums.Job.Business, info.size);
+        }
+
+        isTrickingInvestor = true;
+        boostMaterials.forEach(m => {
+          // if div doesn't need the material, sell it
+          if (!Object.keys(corp.getIndustryData(corp.getDivision(division).type).requiredMaterials).includes(m))
+            corp.sellMaterial(division, city, m, 'MAX', 'MP');
+        });
       });
-    });
+    }
   }
 
   /** Log the current Corp state. */
@@ -663,6 +739,7 @@ export async function main(ns) {
     lines.push(` sCurrent Stage: v${stage}`);
     lines.push(` sCurrent State: v${state}`);
     lines.push(` sFunds: v$${ns.formatNumber(getFunds(), 3)}`);
+    lines.push(` sShares: v${ns.formatNumber(corpInfo().numShares, 3)}`);
     lines.push(` sProfit: ` + (profit > 0 ? `g` : `r`) + `$${ns.formatNumber(profit, 3)} v/ cycle`);
     lines.push(` sInvestment`);
     lines.push(`  m Round:    v${corp.getInvestmentOffer().round}`);
@@ -705,7 +782,7 @@ export async function main(ns) {
   }
 
   function progressBar(currentProgress, fullProgress, maxChar = 10) {
-    const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
+    const progress = Math.min(maxChar, Math.trunc(currentProgress / (fullProgress / maxChar)));
     return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(Math.max(0, maxChar - progress))}\u2524 ${ns.formatPercent(currentProgress / fullProgress, 2)}`;
   }
 }
