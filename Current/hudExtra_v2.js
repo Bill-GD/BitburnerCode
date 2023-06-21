@@ -1,5 +1,5 @@
-/** Version 2.2.7
- * Now show the current BitNode level as well
+/** Version 2.2.8
+ * Fixed bug with BitNode 12 level
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -19,7 +19,7 @@ export async function main(ns) {
   for (const i in labels) {
     const text = labels.item(i).textContent;
     if (text.includes('BitNode') && text.includes('(Level')) {
-      level = text.split('(')[1].split(' ')[1].charAt(0);
+      level = text.split('(')[1].split(' ')[1].split(')')[0];
       break;
     }
   }

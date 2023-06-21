@@ -1,5 +1,5 @@
-/** Version 1.2.2
- * Handles error when can't access the 'Stats' page
+/** Version 1.2.3
+ * Fixed bug with BitNode 12 level
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -24,7 +24,7 @@ export async function main(ns) {
       const text = labels.item(i).textContent;
       if (text.includes('BitNode') && text.includes('(Level')) {
         bitnode = text.split(':')[0].split(' ')[1];
-        level = text.split('(')[1].split(' ')[1].charAt(0);
+        level = text.split('(')[1].split(' ')[1].split(')')[0];
         break;
       }
     }
