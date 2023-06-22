@@ -1,5 +1,5 @@
-/** Version 4.9.4
- * Log when Daedalus is completed the 1st time to the Terminal
+/** Version 4.9.5
+ * New log appearance
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -18,11 +18,6 @@ export async function main(ns) {
     header: getColor(ns.ui.getTheme().hp),
     value: getColor(ns.ui.getTheme().white),
   };
-
-  const listHeaders = {
-    middleChild: `${colors.header}\u251C`,
-    lastChild: `${colors.header}\u2514`,
-  }
 
   const blade = ns.bladeburner;
 
@@ -81,13 +76,15 @@ export async function main(ns) {
     currentOp = getBestOp();
     if (currentOp !== '') {
       await checkCity();
-      await performAction('op', currentOp, Math.trunc(Math.random() * 8 + 8)); // 8-15
+      await performAction('op', currentOp, Math.trunc(Math.random() * 7 + 13)); // 13-20
     }
   }
 
   function logAction(type = '', name = '', count = 1, maxCount = 1) {
     const divider = ' -----------------------------------------------------';
     ns.clearLog();
+
+    const lines = [];
 
     const city = blade.getCity();
     let maxSkillWidth = Math.max('Rank'.length, 'Skill Points'.length);
@@ -106,34 +103,35 @@ export async function main(ns) {
     const totalTime = blade.getActionTime(type, name);
     let lineCount = 21;
 
-    ns.print(` ${colors.section}Current:    ${colors.value}${name} - ${count} / ${maxCount}`);
-    ns.print(`  ${listHeaders.middleChild} Type:    ${colors.value}${type}`);
-    ns.print(`  ${listHeaders.middleChild} Chance:  ${colors.value}${ns.formatPercent(successChance(type, name)[0], 2)}`);
-    ns.print(`  ${listHeaders.middleChild} Time:    ${colors.value}${formatTime(currentTime())} / ${formatTime(totalTime)} - ${progressBar(currentTime(), totalTime, 20)}`);
-    ns.print(`  ${listHeaders.middleChild} Count:   ${colors.value}${taskCount === Infinity ? '\u221e' : taskCount}`);
-    ns.print(`  ${listHeaders.lastChild} Stamina: ${colors.value}${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 2)}`);
-    ns.print(divider);
-
-    ns.print(` ${colors.section}City:${fillWhitespaces(10)}${colors.value}${city}`);
-    ns.print(`  ${listHeaders.middleChild} Population: ${colors.value}${ns.formatNumber(populationOf(city), 3)}`);
-    ns.print(`  ${listHeaders.lastChild} Chaos:      ${colors.value}${ns.formatNumber(blade.getCityChaos(city), 3)}`);
-    ns.print(divider);
-
+    lines.push(' h------------------==={ sCURRENT h}===------------------');
+    const task = `${name}` + (maxCount > 1 ? ` (${count} / ${maxCount})` : '');
+    lines.push(` s${fillWhitespaces((divider.length / 2) - (task.length / 2) - 1)}v${task}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hType: v${type}`);
+    type !== 'General' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(successChance(type, name)[0], 2)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${formatTime(currentTime())} / ${formatTime(totalTime)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(currentTime(), totalTime, 20)}`);
+    taskCount !== Infinity && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${taskCount}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 3)}`);
+    
+    lines.push(' h--------------------==={ sCITY h}===-------------------');
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${city}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(populationOf(city), 3)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(blade.getCityChaos(city), 3)}`);
+    
+    lines.push(' h-------------------==={ sSKILLS h}===------------------');
     const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
     const spGainAvg = Math.trunc(rankGainAvg / 3) + ((currentRank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
-    ns.print(` ${colors.section}Skills`);
-    ns.print(`  ${listHeaders.middleChild} Rank:${fillWhitespaces(maxSkillWidth - 4)} ${colors.value}${ns.formatNumber(currentRank, 3)}` +
+
+    lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(currentRank, 3)}` +
       `${rankGainAvg > 0 ? ` -> ${ns.formatNumber(rankGainAvg + currentRank, 3)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)}` : ''}`);
-    ns.print(`  ` + (skillCount > 0 ? `${listHeaders.middleChild}` : `${listHeaders.lastChild}`) +
-      ` Skill Points:${fillWhitespaces(maxSkillWidth - 12)} ${colors.value}${ns.formatNumber(currentSP, 3)}` +
-      `${spGainAvg > 0 ? ` -> ${Math.trunc(currentSP + spGainAvg)} \u00b1` +
-        ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))}` : ''}`);
-    blade.getSkillNames().forEach((skill, index) => {
+    lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(currentSP, 3)}` +
+      `${spGainAvg > 0 ? ` -> ${Math.trunc(currentSP + spGainAvg)} \u00b1` + ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))}` : ''}`);
+    
+    blade.getSkillNames().forEach(skill => {
       if (blade.getSkillLevel(skill) > 0) {
         const sp = requiredSP(skill);
-        ns.print(
-          (index !== 11 ? `  ${listHeaders.middleChild} ` : `  ${listHeaders.lastChild} `) +
-          `${skill}:${fillWhitespaces(maxSkillWidth - skill.length)} ${colors.value}${ns.formatNumber(blade.getSkillLevel(skill), 3)} - ` +
+        lines.push(
+          `${fillWhitespaces(divider.length / 3 - (skill.length) + 2)} h${skill}: v${ns.formatNumber(blade.getSkillLevel(skill), 3)} - ` +
           (skill === 'Overclock' && blade.getSkillLevel(skill) >= 90 ? 'MAX' :
             (blade.getSkillPoints() >= sp ? `${getColor('#00ff00')}`
               : `${getColor('#ff0000')}`) + `${sp}`)
@@ -141,20 +139,25 @@ export async function main(ns) {
         lineCount++;
       }
     });
-    ns.print(divider);
-
-    ns.print(` ${colors.section}Chances`);
-    ns.print(`  ${listHeaders.middleChild} Avg. Contract:  ${colors.value}${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
-    ns.print(`  ${listHeaders.lastChild} Avg. Operation: ${colors.value}${ns.formatPercent(averageTaskChance('op', operations), 2)}`);
-    ns.print(divider);
-
+    
+    lines.push(' h------------------==={ sCHANCES h}===------------------');
+    lines.push(`${fillWhitespaces(divider.length / 10 + 1)} hAvg. Contract: v${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
+    lines.push(`${fillWhitespaces(divider.length / 10)} hAvg. Operation: v${ns.formatPercent(averageTaskChance('op', operations), 2)}`);
+    
+    lines.push(' h------------------==={ sBLACK OP h}===-----------------');
     const chance = successChance('blackop', currentBlackOp)[0];
-    ns.print(` ${colors.section}Black Op:  ${colors.value}${currentBlackOp}`);
-    ns.print(`  ${listHeaders.middleChild} Chance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
-    ns.print(`  ${listHeaders.lastChild} Rank:   ${colors.value}${ns.formatNumber(blackOpRank, 3)} -` +
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp}`);
+    lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hRank: v${ns.formatNumber(blackOpRank, 3)} -` +
       ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRank)}`);
 
-    ns.resizeTail((divider.length - 2) * 10, lineCount * 25 + 35);
+    ns.print(lines
+      .join('\n')
+      .replaceAll(' s', ` ${colors.section}`)
+      .replaceAll(' h', ` ${colors.header}`)
+      .replaceAll(' v', ` ${colors.value}`)
+    );
+    ns.resizeTail((divider.length - 2) * 10, lines.length * 25 + 10);
   }
 
   /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code). */
@@ -246,6 +249,7 @@ export async function main(ns) {
       ns.closeTail();
       ns.exit();
     }
+
     for (let i = 0; i < count; i++) {
       // if (action === 'Field Analysis' || type === 'contract' || type === 'op' || type === 'blackop') {
       rankGain = [Infinity, 0];
