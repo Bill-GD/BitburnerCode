@@ -1,5 +1,7 @@
-/** Version 1.2.3
- * Fixed bug with BitNode 12 level
+/** Version 1.3
+ * Now has 2 modes
+ * - HTML/UI method: follow sequence of manual method (click tabs, typing...)
+ * - Extract save data using 'window' (only when UI method is unavailable)
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -28,7 +30,7 @@ export async function main(ns) {
         break;
       }
     }
-    let report = `BitNode: ${bitnode}.${level}\n\n`;
+    let report = [`BitNode: ${bitnode}.${level}\n`];
 
     let loss = 0, gain = 0;
     let totalMoney = 0;
@@ -36,16 +38,16 @@ export async function main(ns) {
     Object.entries(ns.getMoneySources().sinceStart).forEach(([k, v]) => {
       if (k === 'total') return;
       totalMoney += v;
-      if (v !== 0) report += `${k.charAt(0).toUpperCase() + k.substring(1)}: $${ns.formatNumber(v, 3)}\n`;
+      if (v !== 0) report.push(`${k.charAt(0).toUpperCase() + k.substring(1)}: $${ns.formatNumber(v, 3)}`);
       v > 0 ? gain += v : loss += Math.abs(v);
     });
 
-    report += `\nLoss: ${loss} (-${ns.formatNumber(loss, 3)})\n` +
-      `Gain: ${gain} (+${ns.formatNumber(gain, 3)})\n` +
+    report.push(`\nLoss: ${loss} (-$${ns.formatNumber(loss, 3)})\n` +
+      `Gain: ${gain} (+$${ns.formatNumber(gain, 3)})\n` +
       `Total: ${totalMoney} (${ns.formatNumber(totalMoney, 3)})\n\n` +
-      `Time: ${bitnodeTime}`;
+      `Time: ${bitnodeTime}`);
 
-    ns.write('BitNode_Money_Report.txt', report, 'w');
+    ns.write('BitNode_Money_Report.txt', report.join('\n'), 'w');
 
     // return to terminal
     doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
@@ -56,7 +58,29 @@ export async function main(ns) {
     const handler = Object.keys(terminalInput)[1];
     terminalInput[handler].onChange({ target: terminalInput });
     terminalInput[handler].onKeyDown({ key: 'Enter', preventDefault: () => null });
-  } catch (error) {
-    ns.alert(`Can't access main screen (terminal)\nMaybe you're focusing on work/crime\n` + error.message);
+  } catch (error) { // can't use sidetabs and/or terminal (when focus)
+    const saveData = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data;
+
+    const bitnodeTime = ns.tFormat(saveData.playtimeSinceLastBitnode);
+
+    const bitnode = saveData.bitNodeN;
+    const level = saveData.sourceFiles.data.find(e => e[0] === bitnode)[1];
+    let report = [`BitNode: ${bitnode}.${level}\n`];
+
+    const moneySinceBN = saveData.moneySourceB.data;
+    let loss = 0, gain = 0;
+
+    Object.entries(moneySinceBN).forEach(([k, v]) => {
+      if (k === 'total') return;
+      if (v !== 0) report.push(`${k.charAt(0).toUpperCase() + k.substring(1)}: $${ns.formatNumber(v, 3)}`);
+      v > 0 ? gain += v : loss += Math.abs(v);
+    });
+
+    report.push(`\nLoss: ${loss} (-$${ns.formatNumber(loss, 3)})\n` +
+      `Gain: ${gain} (+$${ns.formatNumber(gain, 3)})\n` +
+      `Total: ${moneySinceBN.total} (${ns.formatNumber(moneySinceBN.total, 3)})\n\n` +
+      `Time: ${bitnodeTime}`);
+    
+    ns.alert(report.join('\n'));
   }
 }

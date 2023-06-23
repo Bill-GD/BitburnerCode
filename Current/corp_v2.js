@@ -1,9 +1,6 @@
-/** Version 2.3
- * Improved Corporation start sequence
- * Investment related functions now handle reassigning employees (increases sale)
- * Improved Investment fraud handling
- * Now tries to get the highest possible Investment funds
- * Now tries to balance max employee count & max storage of all cities
+/** Version 2.3.1
+ * Sell excess production boost materials as much as possible per cycle
+ * Fixed Market-TA handling for divisions/industries that doesn't produce materials
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -362,7 +359,7 @@ export async function main(ns) {
           else {
             corp.buyMaterial(division, city, boostMaterials[i], 0);
             if (stored > boostMaterialCount[i])
-              corp.sellMaterial(division, city, boostMaterials[i], '100', 'MP');
+              corp.sellMaterial(division, city, boostMaterials[i], ((stored - boostMaterialCount[i]) / 10).toString(), 'MP');
             else
               corp.sellMaterial(division, city, boostMaterials[i], '0', '0');
           }
@@ -438,16 +435,18 @@ export async function main(ns) {
       const products = corp.getDivision(div).products;
 
       if (ta1) {
-        Object.values(ns.enums.CityName).forEach(city => {
-          materials.forEach(m => corp.setMaterialMarketTA1(div, city, m, true));
+        if (materials) Object.values(ns.enums.CityName).forEach(city => materials.forEach(m => corp.setMaterialMarketTA1(div, city, m, true)));
+        if (makeProduct) products.forEach(p => {
+          if (corp.getProduct(div, ns.enums.CityName.Aevum, p).developmentProgress >= 100)
+            corp.setProductMarketTA1(div, p, true);
         });
-        if (makeProduct) products.forEach(p => corp.setProductMarketTA1(div, p, true));
       }
       if (ta2) {
-        Object.values(ns.enums.CityName).forEach(city => {
-          materials.forEach(m => corp.setMaterialMarketTA2(div, city, m, true));
+        if (materials) Object.values(ns.enums.CityName).forEach(city => materials.forEach(m => corp.setMaterialMarketTA2(div, city, m, true)));
+        if (makeProduct) products.forEach(p => {
+          if (corp.getProduct(div, ns.enums.CityName.Aevum, p).developmentProgress >= 100)
+            corp.setProductMarketTA2(div, p, true);
         });
-        if (makeProduct) products.forEach(p => corp.setProductMarketTA2(div, p, true));
       }
     });
   }
@@ -585,7 +584,7 @@ export async function main(ns) {
           corp.sellProduct(division, city, divProducts.slice(-1)[0], 'MAX', 'MP', true);
         });
         // limit how often a product is created
-        if (getFunds() < (designInvest + advInvest) * 4) return;
+        if (getFunds() < (designInvest + advInvest) * 8) return;
       }
 
       // remove oldest product if max product is reached
@@ -624,7 +623,7 @@ export async function main(ns) {
     // if resulting funds is less than desired, returns
     if (investOffer.funds + getFunds() < desiredInvestFunds) return;
 
-    // only continue waiting if gain/cycle is good (>0.1%)
+    // only continue waiting if gain/cycle is ok (>0.1%)
     if (prevCycleInvestment - investOffer.funds > prevCycleInvestment * 0.001) {
       prevCycleInvestment = investOffer.funds;
       return;
@@ -662,7 +661,7 @@ export async function main(ns) {
           }
         });
       });
-    
+
     // updates desired funds for next round
     switch (investOffer.round) { // the round currently in, not done
       case 2:
