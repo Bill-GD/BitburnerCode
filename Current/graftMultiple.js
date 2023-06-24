@@ -1,6 +1,5 @@
-/** Version 2.6.1
- * Fixed bug where an aug is the prerequisite for multiple other augs
- * -> Wrong order & duplicates
+/** Version 2.6.2
+ * Fixed grafted augs (in upgrade tree) aren't filtered out
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -306,7 +305,7 @@ export async function main(ns) {
     chosenAugNames.forEach(aug => {
       if (standAlone.includes(aug)) reorderedAugs.push(aug);
       else if (lastUpgrades.includes(aug))
-        reorderedAugs = [...new Set([...reorderedAugs, ...getUpgradeTree(aug).reverse()])];
+        reorderedAugs = [...new Set([...reorderedAugs, ...getUpgradeTree(aug).reverse().filter(aug => !getOwned().includes(aug))])];
       else if (others.includes(aug)) reorderedAugs.push(aug);
     });
 
