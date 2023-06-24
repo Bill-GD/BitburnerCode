@@ -1,8 +1,6 @@
-/** Version 2.6
- * Augs are now ordered differently:
- * - By ID: high -> low
- * - By prerequisites: Augs with all prerequisites owned/chosen will be grafted
- * - Special augs are prioritized
+/** Version 2.6.1
+ * Fixed bug where an aug is the prerequisite for multiple other augs
+ * -> Wrong order & duplicates
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -179,7 +177,7 @@ export async function main(ns) {
       }
 
       if (waitName !== '' && !getOwned().includes(waitName)) {
-        ns.alert('Grafting work was forcibly stopped');
+        ns.alert('Grafting work for leftover aug was forcibly stopped');
         ns.exit();
       }
 
@@ -211,7 +209,6 @@ export async function main(ns) {
 
         ns.run('graft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
         await ns.sleep(200);
-
 
         // while (currentTime < timeToGraft) {
         while (ns.singularity.getCurrentWork() !== null && ns.singularity.getCurrentWork().type === 'GRAFTING') {
@@ -269,33 +266,6 @@ export async function main(ns) {
     ns.resizeTail(Math.max(250, maxWidth * 10), 25 * (lineCount + 9) + 15);
   }
 
-  /** 
-   * @param {string} augName Name of the augmentation.
-   * @return ```true``` if all prerequisites are grafted or chosen to be grafted in the right order, ```false``` otherwise. 
-   */
-  function checkPrereq(augName) {
-    if (!graftableAugs.includes(augName)) return false;
-    const prereqs = ns.singularity.getAugmentationPrereq(augName);
-    if (prereqs.length === 0) return true;
-
-    let checked = false;
-    let result = true;
-    const augIndex = chosenAugNames.indexOf(augName);
-    prereqs.forEach((prereq) => {
-      if (checked) return;
-      // if not owned
-      if (!getOwned().includes(prereq)) {
-        // if chosen, removes if prereq is after current aug
-        if (chosenAugNames.includes(prereq))
-          result = chosenAugNames.indexOf(prereq) < augIndex;
-        // false if not chosen
-        else result = false;
-        checked = true;
-      }
-    });
-    return result;
-  }
-
   /** Re-organize the list of aug names. */
   function organizeAugs() {
     const specialAugs = [
@@ -335,15 +305,19 @@ export async function main(ns) {
 
     chosenAugNames.forEach(aug => {
       if (standAlone.includes(aug)) reorderedAugs.push(aug);
-      else if (lastUpgrades.includes(aug)) {
-        for (const pre of ns.singularity.getAugmentationPrereq(aug).reverse())
-          if (!getOwned().includes(pre) && prereqs.includes(pre)) reorderedAugs.push(pre);
-        reorderedAugs.push(aug);
-      }
+      else if (lastUpgrades.includes(aug))
+        reorderedAugs = [...new Set([...reorderedAugs, ...getUpgradeTree(aug).reverse()])];
       else if (others.includes(aug)) reorderedAugs.push(aug);
     });
 
     chosenAugNames = reorderedAugs;
+  }
+
+  function getUpgradeTree(lastUpgrade) {
+    let tree = [lastUpgrade];
+    const firstPre = ns.singularity.getAugmentationPrereq(lastUpgrade)[0];
+    if (firstPre) tree = [...new Set([...tree, ...getUpgradeTree(firstPre)])];
+    return tree;
   }
 
   /** Find the last aug of ```prereq``` upgrade tree.

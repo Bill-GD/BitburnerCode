@@ -1,5 +1,6 @@
-/** Version 2.2.8
- * Fixed bug with BitNode 12 level
+/** Version 2.2.9
+ * Merged 'Entropy' into 'Player'
+ * Added the Gang button
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -9,22 +10,25 @@ export async function main(ns) {
   const getPlayer = () => ns.getPlayer();
 
   const doc = eval('document');
+  try {
+    doc.querySelector('svg[aria-label="Stats"]').parentElement.click();
 
-  doc.querySelector('svg[aria-label="Stats"]').parentElement.click();
-
-  // get BitNode time
-  const labels = doc.getElementsByClassName('MuiTypography-root');
-  // get BitNode and level
-  let level = '';
-  for (const i in labels) {
-    const text = labels.item(i).textContent;
-    if (text.includes('BitNode') && text.includes('(Level')) {
-      level = text.split('(')[1].split(' ')[1].split(')')[0];
-      break;
+    // get BitNode time
+    const labels = doc.getElementsByClassName('MuiTypography-root');
+    // get BitNode and level
+    let level = '';
+    for (const i in labels) {
+      const text = labels.item(i).textContent;
+      if (text.includes('BitNode') && text.includes('(Level')) {
+        level = text.split('(')[1].split(' ')[1].split(')')[0];
+        break;
+      }
     }
+    doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
+    ns.write('BN_Level.txt', level, 'w');
+  } catch {
+    ns.alert(`Couldn't extract current BitNode level. Using saved info instead.`);
   }
-  doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
-  ns.write('BN_Level.txt', level, 'w');
 
   const hooks = {
     hookHP: doc.getElementById('overview-hp-hook'),
@@ -84,8 +88,8 @@ export async function main(ns) {
 
   const optionStates = {
     player: false,
-    entropy: false,
     crime: false,
+    gang: false,
     stock: false,
     hacking: false,//
     manageServers: false,
@@ -113,19 +117,19 @@ export async function main(ns) {
     hooks.hookHP
   );
 
-  // entropy
-  createElement(
-    'button',
-    { innerHTML: 'Entropy', style: { color: theme.hp } },
-    'click', () => optionStates.entropy = !optionStates.entropy,
-    hooks.hookHP
-  );
-
   // crime
   createElement(
     'button',
-    { innerHTML: 'Crime', style: { color: theme.money } },
+    { innerHTML: 'Crime', style: { color: theme.hp } },
     'click', () => optionStates.crime = true,
+    hooks.hookHP
+  );
+
+  // gang
+  createElement(
+    'button',
+    { innerHTML: 'Gang', style: { color: theme.money } },
+    'click', () => optionStates.gang = true,
     hooks.hookMoney
   );
 
@@ -280,21 +284,19 @@ export async function main(ns) {
 
       if (optionStates.player) {
         const player = getPlayer();
-        key = [...key, 'City', 'Karma', 'Kills',];
+        key = [...key, 'City', 'Karma', 'Kills', `Entropy`, `Mult`];
         value = [
           ...value,
           `${player.city}`,
           `${ns.formatNumber(ns.heart.break(), 3)}`,
           `${ns.formatNumber(player.numPeopleKilled, 3)}`,
-        ];
-      }
-      if (optionStates.entropy) {
-        key = [...key, `Entropy`, `Mult`];
-        value = [
-          ...value,
           `${getPlayer().entropy}`,
           `${ns.formatPercent(0.98 ** getPlayer().entropy, 2)}`
         ];
+      }
+      if (optionStates.gang) {
+        ns.exec('gang_v3.js', 'home');
+        optionStates.gang = false;
       }
       if (optionStates.crime) {
         ns.exec('autoCrime.js', 'home');
