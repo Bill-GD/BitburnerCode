@@ -1,5 +1,5 @@
-/** Version 2.0.1
- * BitNode is now dynamically checked
+/** Version 2.0.2
+ * Slightly changed position of size [7,7]
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -39,13 +39,13 @@ export async function main(ns) {
     if (compareSize(size, [7, 7])) {
       ns.stanek.placeFragment(0, 0, 3, Fragments.Strength);
       ns.stanek.placeFragment(2, 2, 0, Fragments.Agility);
-      ns.stanek.placeFragment(4, 0, 0, Fragments.Defense);
+      ns.stanek.placeFragment(1, 0, 3, Fragments.Defense);
       ns.stanek.placeFragment(0, 5, 0, Fragments.Dexterity);
       ns.stanek.placeFragment(4, 5, 0, Fragments.Blade);
       ns.stanek.placeFragment(5, 2, 3, Fragments.Crime);
       ns.stanek.placeFragment(0, 3, 0, 106);
       ns.stanek.placeFragment(3, 3, 0, 105);
-      ns.stanek.placeFragment(2, 0, 0, 101);
+      ns.stanek.placeFragment(3, 0, 2, 101);
     }
   } catch (error) {
     ns.alert(`Can't access BitNode detail\nMaybe you're focusing on work/crime\n` + error.message);

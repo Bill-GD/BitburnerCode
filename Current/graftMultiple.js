@@ -1,5 +1,5 @@
-/** Version 2.6.2
- * Fixed grafted augs (in upgrade tree) aren't filtered out
+/** Version 2.6.3
+ * Limits the RAM usage of 'graft.js' to minimal
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -206,7 +206,7 @@ export async function main(ns) {
             + '\n';
         });
 
-        ns.run('graft.js', 1, '--script', '--chosenAugName', aug, '--multiple');
+        ns.run('graft.js', { ramOverride: 29.1, preventDuplicates: true }, '--script', '--chosenAugName', aug, '--multiple');
         await ns.sleep(200);
 
         // while (currentTime < timeToGraft) {

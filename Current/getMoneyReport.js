@@ -1,7 +1,5 @@
-/** Version 1.3
- * Now has 2 modes
- * - HTML/UI method: follow sequence of manual method (click tabs, typing...)
- * - Extract save data using 'window' (only when UI method is unavailable)
+/** Version 1.3.1
+ * Fixed inconsistent display
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -42,9 +40,9 @@ export async function main(ns) {
       v > 0 ? gain += v : loss += Math.abs(v);
     });
 
-    report.push(`\nLoss: ${loss} (-$${ns.formatNumber(loss, 3)})\n` +
-      `Gain: ${gain} (+$${ns.formatNumber(gain, 3)})\n` +
-      `Total: ${totalMoney} (${ns.formatNumber(totalMoney, 3)})\n\n` +
+    report.push(`\nLoss: ${loss} ($${ns.formatNumber(loss, 3)})\n` +
+      `Gain: ${gain} ($${ns.formatNumber(gain, 3)})\n` +
+      `Total: ${totalMoney} ($${ns.formatNumber(totalMoney, 3)})\n\n` +
       `Time: ${bitnodeTime}`);
 
     ns.write('BitNode_Money_Report.txt', report.join('\n'), 'w');
@@ -76,9 +74,9 @@ export async function main(ns) {
       v > 0 ? gain += v : loss += Math.abs(v);
     });
 
-    report.push(`\nLoss: ${loss} (-$${ns.formatNumber(loss, 3)})\n` +
-      `Gain: ${gain} (+$${ns.formatNumber(gain, 3)})\n` +
-      `Total: ${moneySinceBN.total} (${ns.formatNumber(moneySinceBN.total, 3)})\n\n` +
+    report.push(`\nLoss: ${loss} ($${ns.formatNumber(loss, 3)})\n` +
+      `Gain: ${gain} ($${ns.formatNumber(gain, 3)})\n` +
+      `Total: ${moneySinceBN.total} ($${ns.formatNumber(moneySinceBN.total, 3)})\n\n` +
       `Time: ${bitnodeTime}`);
     
     ns.alert(report.join('\n'));

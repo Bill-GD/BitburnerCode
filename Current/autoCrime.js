@@ -1,5 +1,5 @@
-/** Version 2.0.2
- * Updated the progress bar
+/** Version 2.0.3
+ * Log title shows current crime
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -20,6 +20,7 @@ export async function main(ns) {
 
   const crimeName = await ns.prompt('Choose crime', { 'type': 'select', 'choices': crimes });
   if (crimeName === '') ns.exit();
+  ns.setTitle(`Crime: ${crimeName}`);
 
   ns.clearLog();
 

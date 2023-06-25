@@ -1,5 +1,7 @@
-/** Version 4.9.5
- * New log appearance
+/** Version 4.9.6
+ * Rank & SP gains now only show the gain, not the values after that
+ * Resize the log
+ * Log title shows the current action
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -81,7 +83,7 @@ export async function main(ns) {
   }
 
   function logAction(type = '', name = '', count = 1, maxCount = 1) {
-    const divider = ' -----------------------------------------------------';
+    const divider = ' ---------------------------------------------------';
     ns.clearLog();
 
     const lines = [];
@@ -103,35 +105,35 @@ export async function main(ns) {
     const totalTime = blade.getActionTime(type, name);
     let lineCount = 21;
 
-    lines.push(' h------------------==={ sCURRENT h}===------------------');
+    lines.push(' h----------------==={ sCURRENT h}===------------------');
     const task = `${name}` + (maxCount > 1 ? ` (${count} / ${maxCount})` : '');
     lines.push(` s${fillWhitespaces((divider.length / 2) - (task.length / 2) - 1)}v${task}`);
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hType: v${type}`);
     type !== 'General' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(successChance(type, name)[0], 2)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${formatTime(currentTime())} / ${formatTime(totalTime)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(currentTime(), totalTime, 20)}`);
-    taskCount !== Infinity && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${taskCount}`);
+    (taskCount !== Infinity && taskCount !== 1) && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${taskCount}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 3)}`);
     
-    lines.push(' h--------------------==={ sCITY h}===-------------------');
+    lines.push(' h------------------==={ sCITY h}===-------------------');
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${city}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(populationOf(city), 3)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(blade.getCityChaos(city), 3)}`);
     
-    lines.push(' h-------------------==={ sSKILLS h}===------------------');
+    lines.push(' h-----------------==={ sSKILLS h}===------------------');
     const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
     const spGainAvg = Math.trunc(rankGainAvg / 3) + ((currentRank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
 
-    lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(currentRank, 3)}` +
-      `${rankGainAvg > 0 ? ` -> ${ns.formatNumber(rankGainAvg + currentRank, 3)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)}` : ''}`);
-    lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(currentSP, 3)}` +
-      `${spGainAvg > 0 ? ` -> ${Math.trunc(currentSP + spGainAvg)} \u00b1` + ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))}` : ''}`);
+    lines.push(`${fillWhitespaces(divider.length / 3 - 3)} hRank: v${ns.formatNumber(currentRank, 3)}` +
+      `${rankGainAvg > 0 ? ` (+${ns.formatNumber(rankGainAvg, 3)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)})` : ''}`);
+    lines.push(`${fillWhitespaces(divider.length / 3 - 11)} hSkill Points: v${ns.formatNumber(currentSP, 3)}` +
+      `${spGainAvg > 0 ? ` (+${Math.trunc(spGainAvg)} \u00b1` + ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))})` : ''}`);
     
     blade.getSkillNames().forEach(skill => {
       if (blade.getSkillLevel(skill) > 0) {
         const sp = requiredSP(skill);
         lines.push(
-          `${fillWhitespaces(divider.length / 3 - (skill.length) + 2)} h${skill}: v${ns.formatNumber(blade.getSkillLevel(skill), 3)} - ` +
+          `${fillWhitespaces(divider.length / 3 - (skill.length) + 1)} h${skill}: v${ns.formatNumber(blade.getSkillLevel(skill), 3)} - ` +
           (skill === 'Overclock' && blade.getSkillLevel(skill) >= 90 ? 'MAX' :
             (blade.getSkillPoints() >= sp ? `${getColor('#00ff00')}`
               : `${getColor('#ff0000')}`) + `${sp}`)
@@ -140,11 +142,11 @@ export async function main(ns) {
       }
     });
     
-    lines.push(' h------------------==={ sCHANCES h}===------------------');
-    lines.push(`${fillWhitespaces(divider.length / 10 + 1)} hAvg. Contract: v${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
-    lines.push(`${fillWhitespaces(divider.length / 10)} hAvg. Operation: v${ns.formatPercent(averageTaskChance('op', operations), 2)}`);
+    lines.push(' h-----------------==={ sCHANCES h}===-----------------');
+    lines.push(`${fillWhitespaces(divider.length / 10)} hAvg. Contract: v${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
+    lines.push(`${fillWhitespaces(divider.length / 10 - 1)} hAvg. Operation: v${ns.formatPercent(averageTaskChance('op', operations), 2)}`);
     
-    lines.push(' h------------------==={ sBLACK OP h}===-----------------');
+    lines.push(' h----------------==={ sBLACK OP h}===-----------------');
     const chance = successChance('blackop', currentBlackOp)[0];
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp}`);
     lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
@@ -157,7 +159,7 @@ export async function main(ns) {
       .replaceAll(' h', ` ${colors.header}`)
       .replaceAll(' v', ` ${colors.value}`)
     );
-    ns.resizeTail((divider.length - 2) * 10, lines.length * 25 + 10);
+    ns.resizeTail((divider.length - 2) * 10, lines.length * 25 + 15);
   }
 
   /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code). */
@@ -263,6 +265,7 @@ export async function main(ns) {
       if (rankGain[0] === Infinity) rankGain[0] = 0;
 
       if (blade.startAction(type, action)) {
+        ns.setTitle(action + (count > 1 ? ' x' + count : ''));
         const totalTime = blade.getActionTime(type, action);
         let current = currentTime();
         while (current < totalTime) {

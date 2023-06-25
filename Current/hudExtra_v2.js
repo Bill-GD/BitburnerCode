@@ -1,13 +1,10 @@
-/** Version 2.2.9
- * Merged 'Entropy' into 'Player'
- * Added the Gang button
+/** Version 2.2.10
+ * Prevents duplicating scripts
  */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
   ns.clearLog();
-
-  const getPlayer = () => ns.getPlayer();
 
   const doc = eval('document');
   try {
@@ -274,7 +271,7 @@ export async function main(ns) {
 
   buttons.forEach(bt => Object.assign(bt.style, { width: `${maxTextWidth * 10}px` }));
 
-  const currentBN = ns.getResetInfo().currentNode;
+  const currentBN = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bitNodeN;
   const currentBNLevel = ns.read('BN_Level.txt');
 
   while (await ns.sleep(10)) {
@@ -283,59 +280,59 @@ export async function main(ns) {
       let value = [`${currentBN}.${currentBNLevel}`];
 
       if (optionStates.player) {
-        const player = getPlayer();
+        const player = ns.getPlayer();
         key = [...key, 'City', 'Karma', 'Kills', `Entropy`, `Mult`];
         value = [
           ...value,
           `${player.city}`,
           `${ns.formatNumber(ns.heart.break(), 3)}`,
           `${ns.formatNumber(player.numPeopleKilled, 3)}`,
-          `${getPlayer().entropy}`,
-          `${ns.formatPercent(0.98 ** getPlayer().entropy, 2)}`
+          `${player.entropy}`,
+          `${ns.formatPercent(0.98 ** player.entropy, 2)}`
         ];
       }
       if (optionStates.gang) {
-        ns.exec('gang_v3.js', 'home');
+        ns.exec('gang_v3.js', 'home', { preventDuplicates: true });
         optionStates.gang = false;
       }
       if (optionStates.crime) {
-        ns.exec('autoCrime.js', 'home');
+        ns.exec('autoCrime.js', 'home', { preventDuplicates: true });
         optionStates.crime = false;
       }
       if (optionStates.stock) {
-        ns.exec('stockControl.js', 'home');
+        ns.exec('stockControl.js', 'home', { preventDuplicates: true });
         optionStates.stock = false;
       }
       if (optionStates.hacking) {
-        ns.exec('controlHack.js', 'home');
+        ns.exec('controlHack.js', 'home', { preventDuplicates: true });
         optionStates.hacking = false;
       }
       if (optionStates.manageServers) {
-        ns.exec('extraServer_v2.js', 'home');
+        ns.exec('extraServer_v2.js', 'home', { preventDuplicates: true });
         optionStates.manageServers = false;
       }
       if (optionStates.graft) {
-        ns.exec('graft.js', 'home');
+        ns.exec('graft.js', 'home', { preventDuplicates: true });
         optionStates.graft = false;
       }
       if (optionStates.graftMultiple) {
-        ns.exec('graftMultiple.js', 'home');
+        ns.exec('graftMultiple.js', 'home', { preventDuplicates: true });
         optionStates.graftMultiple = false;
       }
       if (optionStates.blade) {
-        ns.exec('blade_v4.js', 'home');
+        ns.exec('blade_v4.js', 'home', { preventDuplicates: true });
         optionStates.blade = false;
       }
       if (optionStates.joinBlade) {
-        ns.exec('joinBlade.js', 'home');
+        ns.exec('joinBlade.js', 'home', { preventDuplicates: true });
         optionStates.joinBlade = false;
       }
       if (optionStates.sleeve) {
-        ns.exec('sleeve_v2.js', 'home');
+        ns.exec('sleeve_v2.js', 'home', { preventDuplicates: true });
         optionStates.sleeve = false;
       }
       if (optionStates.corp) {
-        ns.exec('corp_v2.js', 'home');
+        ns.exec('corp_v2.js', 'home', { preventDuplicates: true });
         optionStates.corp = false;
       }
       if (optionStates.runScript) {
@@ -350,12 +347,12 @@ export async function main(ns) {
           const args = (await ns.prompt('Arguments?\nSeparate by spaces', { 'type': 'text' }))
             .split(' ').filter(arg => arg !== '');
 
-          ns.exec(file, 'home', thread, ...args);
+          ns.exec(file, 'home', { preventDuplicates: true, threads: thread }, ...args);
         }
         optionStates.runScript = false;
       }
       if (optionStates.traveling) {
-        ns.exec('travel.js', 'home');
+        ns.exec('travel.js', 'home', { preventDuplicates: true });
         optionStates.traveling = false;
       }
       if (optionStates.showRam) {
@@ -370,14 +367,14 @@ export async function main(ns) {
         ];
       }
       if (optionStates.buyRam) {
-        ns.exec('homeUpgrade.js', 'home');
+        ns.exec('homeUpgrade.js', 'home', { preventDuplicates: true });
         optionStates.buyRam = false;
       }
       if (optionStates.reportMoney) {
-        ns.exec('getMoneyReport.js', 'home');
+        ns.exec('getMoneyReport.js', 'home', { preventDuplicates: true });
         optionStates.reportMoney = false;
       }
-      if (optionStates.hudRestart) ns.exec('restart.js', 'home', 1, 'hudExtra_v2.js');
+      if (optionStates.hudRestart) ns.exec('restart.js', 'home', { preventDuplicates: true }, 'hudExtra_v2.js');
       if (optionStates.hudExit) ns.exit();
 
       hooks.hook0.innerText = key.join('\n');

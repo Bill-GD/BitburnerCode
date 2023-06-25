@@ -1,5 +1,5 @@
-/** Version 2.2.2
- * Improved logging color & code
+/** Version 2.2.3
+ * Removed some shortened functions
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -24,13 +24,10 @@ export async function main(ns) {
 
   const graft = ns.grafting;
 
-  const player = () => ns.getPlayer();
-  const checkMoney = cost => player().money >= cost;
-  const augGraftCost = aug => graft.getAugmentationGraftPrice(aug);
-  const getAugStats = aug => ns.singularity.getAugmentationStats(aug);
+  const checkMoney = cost => ns.getPlayer().money >= cost;
 
   const graftableAugs = graft.getGraftableAugmentations();
-  graftableAugs.sort((a, b) => augGraftCost(a) - augGraftCost(b));
+  graftableAugs.sort((a, b) => graft.getAugmentationGraftPrice(a) - graft.getAugmentationGraftPrice(b));
 
   let option = '';
   if (flagOptions.script)
@@ -65,7 +62,7 @@ export async function main(ns) {
       );
 
       Object.entries(graftableAugs).forEach(([id, name]) => {
-        const cost = augGraftCost(name);
+        const cost = graft.getAugmentationGraftPrice(name);
         const hasEnoughMoney = checkMoney(cost);
         const checkColor = hasEnoughMoney ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`;
         const info = `${checkColor} ${id}. ${colors.value}${name} - ${getColor(ns.ui.getTheme().money)}$${ns.formatNumber(cost, 3)}${colors.value} - ${checkColor}${hasEnoughMoney.toString().toUpperCase()}\n`;
@@ -78,7 +75,7 @@ export async function main(ns) {
           ns.print(info);
         else {
           let done = false;
-          Object.entries(getAugStats(name)).forEach(([type, mult]) => {
+          Object.entries(ns.singularity.getAugmentationStats(name)).forEach(([type, mult]) => {
             if (done) return;
             if (mult !== 1) {
               if (sortOption === 'misc' && checkMisc(name)) {
@@ -112,9 +109,9 @@ export async function main(ns) {
       const nameLine = ` Name: ${chosenAug}`;
       maxWidth = Math.max(maxWidth, nameLine.length);
       ns.printf(`${colors.section}` + nameLine.replace(': ', `: ${colors.value}`));
-      const money = checkMoney(augGraftCost(chosenAug));
+      const money = checkMoney(graft.getAugmentationGraftPrice(chosenAug));
       ns.printf(`${colors.section} Cost:` +
-        (money ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + ` $${ns.formatNumber(augGraftCost(chosenAug), 3)}\n\n`);
+        (money ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + ` $${ns.formatNumber(graft.getAugmentationGraftPrice(chosenAug), 3)}\n\n`);
 
       let prereq = ns.singularity.getAugmentationPrereq(chosenAug);
       if (prereq.length !== 0) {
@@ -133,7 +130,7 @@ export async function main(ns) {
         lineCount += 2;
       }
 
-      let stats = Object.entries(getAugStats(chosenAug)).filter(([type, mult]) => mult !== 1);
+      let stats = Object.entries(ns.singularity.getAugmentationStats(chosenAug)).filter(([type, mult]) => mult !== 1);
       if (stats.length === 0) {
         maxWidth = Math.max(maxWidth, ` INFO: This aug doesn't have any specific stat`.length);
         ns.printf(`${getColor('#0099ff')} This aug doesn't have any specific stat`);
@@ -171,14 +168,14 @@ export async function main(ns) {
 
       let focus = !ns.singularity.getOwnedAugmentations().includes("Neuroreceptor Management Implant");
 
-      if (!checkMoney(augGraftCost(chosenAug))) {
+      if (!checkMoney(graft.getAugmentationGraftPrice(chosenAug))) {
         ns.alert(` (!) You don't have enough money to graft: ${chosenAug}`);
-        ns.printf(`${getColor('#0099ff')} Missing: $${ns.formatNumber(augGraftCost(chosenAug) - player().money, 1)}`);
+        ns.printf(`${getColor('#0099ff')} Missing: $${ns.formatNumber(graft.getAugmentationGraftPrice(chosenAug) - ns.getPlayer().money, 1)}`);
         ns.exit();
       }
 
-      if (player().city !== "New Tokyo")
-        if (player().money - augGraftCost(chosenAug) > 2e5) ns.singularity.travelToCity("New Tokyo");
+      if (ns.getPlayer().city !== "New Tokyo")
+        if (ns.getPlayer().money - graft.getAugmentationGraftPrice(chosenAug) > 2e5) ns.singularity.travelToCity("New Tokyo");
         else {
           ns.printf(`${getColor('#ff0000')} You don't have enough money to travel to New Tokyo`);
           ns.exit();
@@ -188,7 +185,7 @@ export async function main(ns) {
           ns.resizeTail(600, 130);
           const showTime = await ns.prompt('Show time?');
           if (showTime) {
-            ns.printf(` Time to graft\n ${chosenAug} (ID=${id}, cost=$${ns.formatNumber(augGraftCost(chosenAug), 1)}):`);
+            ns.printf(` Time to graft\n ${chosenAug} (ID=${id}, cost=$${ns.formatNumber(graft.getAugmentationGraftPrice(chosenAug), 1)}):`);
             ns.printf(`  > ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`);
           }
           else
@@ -205,7 +202,7 @@ export async function main(ns) {
 
   function checkMisc(augName) {
     let isMisc = true;
-    Object.entries(getAugStats(augName)).forEach(([type, mult]) => {
+    Object.entries(ns.singularity.getAugmentationStats(augName)).forEach(([type, mult]) => {
       if (!isMisc) return;
       if (mult !== 1) {
         isMisc = !(type.includes('hacking') ||
