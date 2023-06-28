@@ -1,5 +1,5 @@
-/** Version 2.0.2
- * Slightly changed position of size [7,7]
+/** Version 2.0.3
+ * Added placement for size [7,6]
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -16,7 +16,7 @@ export async function main(ns) {
         break;
       }
     }
-    doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
+    doc.querySelector('svg[aria-label="Staneks Gift"]').parentElement.click();
     const size = getSize(parseInt(bitnode), parseInt(level));
 
     const Fragments = {
@@ -26,6 +26,7 @@ export async function main(ns) {
       Agility: 16,
       Blade: 30,
       Crime: 28,
+      HacknetProd: 20,
     };
 
     if (ns.stanek.acceptGift())
@@ -46,6 +47,17 @@ export async function main(ns) {
       ns.stanek.placeFragment(0, 3, 0, 106);
       ns.stanek.placeFragment(3, 3, 0, 105);
       ns.stanek.placeFragment(3, 0, 2, 101);
+    }
+    if (compareSize(size, [7, 6])) {
+      ns.stanek.placeFragment(2, 2, 0, 101);
+      ns.stanek.placeFragment(0, 4, 0, Fragments.Blade);
+      ns.stanek.placeFragment(3, 3, 1, Fragments.Crime);
+      ns.stanek.placeFragment(4, 3, 1, 105);
+      ns.stanek.placeFragment(6, 1, 1, Fragments.HacknetProd);
+      ns.stanek.placeFragment(4, 0, 0, Fragments.Agility);
+      ns.stanek.placeFragment(2, 0, 0, Fragments.Strength);
+      ns.stanek.placeFragment(0, 0, 3, Fragments.Dexterity);
+      ns.stanek.placeFragment(0, 1, 1, Fragments.Defense);
     }
   } catch (error) {
     ns.alert(`Can't access BitNode detail\nMaybe you're focusing on work/crime\n` + error.message);
