@@ -6,6 +6,7 @@ export async function main(ns) {
     while (!ns.stock.purchase4SMarketDataTixApi())
       await ns.sleep(60e3);
     ns.kill('stockTix.js');
-    ns.run('stockBN8.js');
+    ns.run('stockBN8.js', { preventDuplicates: true });
   }
+  else ns.run('stockBN8.js', { preventDuplicates: true });
 }
