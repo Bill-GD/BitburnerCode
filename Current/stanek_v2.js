@@ -16,7 +16,7 @@ export async function main(ns) {
         break;
       }
     }
-    doc.querySelector('svg[aria-label="Staneks Gift"]').parentElement.click();
+    doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
     const size = getSize(parseInt(bitnode), parseInt(level));
 
     const Fragments = {
@@ -59,6 +59,7 @@ export async function main(ns) {
       ns.stanek.placeFragment(0, 0, 3, Fragments.Dexterity);
       ns.stanek.placeFragment(0, 1, 1, Fragments.Defense);
     }
+    
   } catch (error) {
     ns.alert(`Can't access BitNode detail\nMaybe you're focusing on work/crime\n` + error.message);
   }
