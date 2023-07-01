@@ -1,5 +1,6 @@
-/** Version 2.2.10
- * Prevents duplicating scripts
+/** Version 2.2.11
+ * Merged 'Join' into 'Blade' (join Blade button)
+ * Added Stanek button: accept gift, charge fragments
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -10,7 +11,6 @@ export async function main(ns) {
   try {
     doc.querySelector('svg[aria-label="Stats"]').parentElement.click();
 
-    // get BitNode time
     const labels = doc.getElementsByClassName('MuiTypography-root');
     // get BitNode and level
     let level = '';
@@ -23,9 +23,7 @@ export async function main(ns) {
     }
     doc.querySelector('svg[aria-label="Terminal"]').parentElement.click();
     ns.write('BN_Level.txt', level, 'w');
-  } catch {
-    ns.alert(`Couldn't extract current BitNode level. Using saved info instead.`);
-  }
+  } catch { }
 
   const hooks = {
     hookHP: doc.getElementById('overview-hp-hook'),
@@ -93,7 +91,7 @@ export async function main(ns) {
     graft: false,
     graftMultiple: false,
     blade: false,
-    joinBlade: false,
+    stanek: false,
     sleeve: false,
     corp: false,
     runScript: false,
@@ -180,8 +178,8 @@ export async function main(ns) {
 
   createElement(
     'button',
-    { innerHTML: 'Join', style: { color: theme.combat } },
-    'click', () => optionStates.joinBlade = true,
+    { innerHTML: 'Stanek', style: { color: theme.combat } },
+    'click', () => optionStates.stanek = true,
     hooks.hookDef
   );
 
@@ -320,12 +318,17 @@ export async function main(ns) {
         optionStates.graftMultiple = false;
       }
       if (optionStates.blade) {
+        ns.exec('joinBlade.js', 'home', { preventDuplicates: true });
         ns.exec('blade_v4.js', 'home', { preventDuplicates: true });
         optionStates.blade = false;
       }
-      if (optionStates.joinBlade) {
-        ns.exec('joinBlade.js', 'home', { preventDuplicates: true });
-        optionStates.joinBlade = false;
+      if (optionStates.stanek) {
+        ns.exec('stanek_v2.js', 'home', { preventDuplicates: true });
+        ns.exec('stanekThread.js', 'home', { preventDuplicates: true });
+        const thread = parseInt(ns.read('thread.txt'));
+        if (thread >= 1)
+          ns.exec('chargeStanek.js', 'home', { preventDuplicates: true, threads: thread })
+        optionStates.stanek = false;
       }
       if (optionStates.sleeve) {
         ns.exec('sleeve_v2.js', 'home', { preventDuplicates: true });
