@@ -1,11 +1,6 @@
-/** Version 3.0
- * Rewritten from v2.x (unknown version)
- * Attempt to use less official API (less RAM)
- * -> Uses 'window' to get data
- *  - Repeated use can cause massive lag spikes
- *  - Limited data access, use source code calculations to compensate
- * Better log, includes headline section for notifications
- * Integrated territory support
+/** Version 3.0.1
+ * Rebalance the territory log conditions, warfare requirements
+ * Some code cleanup
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -48,8 +43,10 @@ export async function main(ns) {
     }
   }
 
-  /** Only allow 10% of money. */
-  const getMoney = () => ns.getServerMoneyAvailable('home') * 0.1;
+  /** The amount of money allowed to spend on gang equipment.
+   ** Higher -> profit faster (& slower in general if use stock as well)
+   */
+  const getMoney = () => ns.getServerMoneyAvailable('home') * 0.25;
 
   let headlines = [];
   const tasks = {
@@ -78,11 +75,7 @@ export async function main(ns) {
     // check task
     const allGangData = JSON.parse(saveData.AllGangsSave);
 
-    // choose between 2 trafficking tasks
-    // human: better gain & scale but less balanced stats gain
-    // arms: less gain & scale but has balanced stats gain
     const task = tasks.Combat.HumanTrafficking;
-    // if (!gangInfo.territoryWarfareEngaged) {
     const taskStats = ns.gang.getTaskStats(task);
     const gangDataPart = {
       respect: gangInfo.respect,
@@ -96,18 +89,16 @@ export async function main(ns) {
       ) ns.gang.setMemberTask(member, task);
       else ns.gang.setMemberTask(member, tasks.Train.Combat);
     });
-    // }
 
     // check equipment
     let count = 0;
     upgrades.forEach(up => {
-      // if (!isCombatEquipment(up)) return; // why removed? -> all stats contribute to the power gain in warfare
+      const cost = ns.gang.getEquipmentCost(up);
       allMembers.forEach((member, index) => {
-        if (ns.gang.getEquipmentCost(up) < getMoney() / allMembers.length &&
-          !membersData[index].data.upgrades.includes(up)) {
-          ns.gang.purchaseEquipment(member, up);
+        if (cost < getMoney() / allMembers.length &&
+          !membersData[index].data.upgrades.includes(up) &&
+          ns.gang.purchaseEquipment(member, up))
           count++;
-        }
       });
     });
     if (count !== 0) headlines.push(`Purchased ${count} equipment`);
@@ -115,13 +106,12 @@ export async function main(ns) {
     // check aug
     count = 0;
     augs.forEach(aug => {
-      // if (!isCombatEquipment(aug)) return;
+      const cost = ns.gang.getEquipmentCost(aug);
       allMembers.forEach((member, index) => {
-        if (ns.gang.getEquipmentCost(aug) < getMoney() / allMembers.length &&
-          !membersData[index].data.augmentations.includes(aug)) {
-          ns.gang.purchaseEquipment(member, aug);
+        if (cost < getMoney() / allMembers.length &&
+          !membersData[index].data.augmentations.includes(aug) &&
+          ns.gang.purchaseEquipment(member, aug))
           count++;
-        }
       });
     });
     if (count !== 0) headlines.push(`Purchased ${count} aug(s)`);
@@ -129,10 +119,8 @@ export async function main(ns) {
     // check ascend
     count = 0;
     allMembers.forEach((member, index) => {
-      if (getAscendResults(membersData[index].data) > 2) {
-        ns.gang.ascendMember(member);
+      if (getAscendResults(membersData[index].data) >= 1.75 && ns.gang.ascendMember(member))
         count++;
-      }
     });
     if (count !== 0) headlines.push(`Ascended ${count} member(s)`);
 
@@ -143,9 +131,7 @@ export async function main(ns) {
 
     // territory warfare
     if (allGangData['Slum Snakes'].territory < 1) {
-      const firstMember = membersData[0].data;
-      const avgFirst = (firstMember.agi + firstMember.str + firstMember.def + firstMember.dex) / 4;
-      if (allMembers.length >= 12 && avgFirst > 450) {
+      if (allMembers.length >= 12) {
         const lowestWinChance = Object.keys(allGangData)
           .filter(g => g !== 'Slum Snakes')
           .filter(g => allGangData[g].territory > 0)
@@ -156,7 +142,7 @@ export async function main(ns) {
         if (lowestWinChance < 0.8)
           allMembers.forEach(member => ns.gang.setMemberTask(member, tasks.Territory));
 
-        if (lowestWinChance >= 0.55) ns.gang.setTerritoryWarfare(true);
+        if (lowestWinChance >= 0.5) ns.gang.setTerritoryWarfare(true);
         else ns.gang.setTerritoryWarfare(false);
       }
     }
@@ -164,13 +150,13 @@ export async function main(ns) {
 
     // log
     log(allGangData['Slum Snakes'], gangInfo, membersData);
-    if (cycle % 5 === 0) {
+    if (cycle % 10 === 0) {
       headlines = [];
       cycle = 0;
     }
     cycle++;
 
-    await ns.sleep(2e3 / (ns.gang.getBonusTime() > 2e3 ? 5 : 1));
+    await ns.sleep(2e3 / (ns.gang.getBonusTime() > 2e3 ? 10 : 1));
   }
 
   /** Calculates the average ascension result of the specified member.
@@ -179,7 +165,7 @@ export async function main(ns) {
    * @see https://github.com/bitburner-official/bitburner-src/blob/dev/src/NetscriptFunctions/Gang.ts#L249
    */
   function getAscendResults(memberData) {
-    // agi, def, dex, str -> asc_points & exp
+    // asc_points & exp
     const stats = ['hack', 'cha', 'agi', 'def', 'dex', 'str'];
 
     const results = stats.map(stat => {
@@ -190,17 +176,12 @@ export async function main(ns) {
       );
       return gain / current;
     });
-    return results.reduce((acc, cur) => acc + cur, 0) / 4;
+    return results.reduce((acc, cur) => acc + cur, 0) / 6;
   }
 
   function calculateAscensionMult(points) {
     return Math.max(Math.pow(points / 2000, 0.5), 1);
   }
-
-  // function isCombatEquipment(equipment) {
-  //   const stats = ns.gang.getEquipmentStats(equipment);
-  //   return stats.agi || stats.str || stats.def || stats.dex;
-  // }
 
   function log(gangData, gangInfo, membersData) {
     ns.clearLog();
@@ -219,7 +200,7 @@ export async function main(ns) {
     lines.push(' h--------------==={ sINFO h}===--------------');
     lines.push(`${fill(9)} hRespect: v${ns.formatNumber(gangInfo.respect, 3)}`);
     lines.push(`${fill(10)} hWanted: v${ns.formatNumber(gangInfo.wanted, 3)} (${ns.formatPercent(gangInfo.respect / (gangInfo.respect + gangInfo.wanted), 2)})`);
-    lines.push(`${fill(10)} hIncome: v$${ns.formatNumber(gangInfo.moneyGainRate * 5, 3)} /s`);
+    lines.push(`${fill(10)} hIncome: v$${ns.formatNumber(gangInfo.moneyGainRate * 10, 3)} / cycle`);
 
     lines.push(' h-------------==={ sMEMBER h}===-------------');
     ns.gang.getMemberNames().forEach((member, index) => {
@@ -230,10 +211,11 @@ export async function main(ns) {
     lines.push(' h-----------==={ sTERRITORY h}===------------');
     lines.push(`${fill(9)} hWarfare: v${gangInfo.territoryWarfareEngaged ? `${getColor('#00FF00')}ON` : `${getColor('#FF0000')}OFF`}`);
     lines.push(`${fill(7)} hTerritory: v${ns.formatPercent(gangData.territory, 3)}`);
-    if (gangInfo.territoryClashChance > 0) {
-      lines.push(`${fill(11)} hPower: v${ns.formatNumber(gangData.power, 3)} (+${ns.formatNumber(calculatePower(membersData, gangData.territory), 3)})`);
-      lines.push(`${fill(4)} hClash Chance: v${ns.formatPercent(gangInfo.territoryClashChance, 2)}`);
+    if (gangData.territory < 1) {
+      const powerIncrease = calculatePower(membersData, gangData.territory);
+      lines.push(`${fill(11)} hPower: v${ns.formatNumber(gangData.power, 3)} ${powerIncrease > 0 ? `(+${ns.formatNumber(powerIncrease, 3)})` : ''}`);
     }
+    gangInfo.territoryClashChance > 0 && lines.push(`${fill(4)} hClash Chance: v${ns.formatPercent(gangInfo.territoryClashChance, 2)}`);
 
     ns.print(lines
       .join('\n')
