@@ -1,7 +1,8 @@
-/** Version 4.9.6
- * Rank & SP gains now only show the gain, not the values after that
- * Resize the log
- * Log title shows the current action
+/** Version 4.9.7
+ * General actions are skipped if contract chances are sufficient
+ * Check accuracy of operations
+ * Log title is now the current action
+ * Changed Daedalus log time format
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -58,10 +59,13 @@ export async function main(ns) {
   // main loop
   while (await ns.sleep(10)) {
     // general
-    await checkCity();
-    await checkChaos();
-    await performAction('general', 'Training');
-    await performAction('general', 'Field Analysis');
+    await checkAccuracy('contract', 'Tracking');
+    if (successChance('contract', 'Tracking')[0] < chanceLimits.contract) {
+      await checkCity();
+      await checkChaos();
+      await performAction('general', 'Training');
+      await performAction('general', 'Field Analysis');
+    }
 
     // contracts
     await checkAccuracy('contract', 'Tracking');
@@ -78,6 +82,7 @@ export async function main(ns) {
     currentOp = getBestOp();
     if (currentOp !== '') {
       await checkCity();
+      await checkAccuracy('op', currentOp);
       await performAction('op', currentOp, Math.trunc(Math.random() * 7 + 13)); // 13-20
     }
   }
@@ -114,12 +119,12 @@ export async function main(ns) {
     lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(currentTime(), totalTime, 20)}`);
     (taskCount !== Infinity && taskCount !== 1) && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${taskCount}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 3)}`);
-    
+
     lines.push(' h------------------==={ sCITY h}===-------------------');
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${city}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(populationOf(city), 3)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(blade.getCityChaos(city), 3)}`);
-    
+
     lines.push(' h-----------------==={ sSKILLS h}===------------------');
     const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
     const spGainAvg = Math.trunc(rankGainAvg / 3) + ((currentRank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
@@ -128,7 +133,7 @@ export async function main(ns) {
       `${rankGainAvg > 0 ? ` (+${ns.formatNumber(rankGainAvg, 3)} \u00b1 ${ns.formatNumber(rankGain[1] - rankGainAvg, 2)})` : ''}`);
     lines.push(`${fillWhitespaces(divider.length / 3 - 11)} hSkill Points: v${ns.formatNumber(currentSP, 3)}` +
       `${spGainAvg > 0 ? ` (+${Math.trunc(spGainAvg)} \u00b1` + ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))})` : ''}`);
-    
+
     blade.getSkillNames().forEach(skill => {
       if (blade.getSkillLevel(skill) > 0) {
         const sp = requiredSP(skill);
@@ -141,11 +146,11 @@ export async function main(ns) {
         lineCount++;
       }
     });
-    
+
     lines.push(' h-----------------==={ sCHANCES h}===-----------------');
     lines.push(`${fillWhitespaces(divider.length / 10)} hAvg. Contract: v${ns.formatPercent(averageTaskChance('contract', contracts), 2)}`);
     lines.push(`${fillWhitespaces(divider.length / 10 - 1)} hAvg. Operation: v${ns.formatPercent(averageTaskChance('op', operations), 2)}`);
-    
+
     lines.push(' h----------------==={ sBLACK OP h}===-----------------');
     const chance = successChance('blackop', currentBlackOp)[0];
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp}`);
@@ -239,9 +244,13 @@ export async function main(ns) {
       await performAction('general', 'Field Analysis');
   }
 
-  /** Starts the specified action a certain amount of time (```default=1```) and write to log.
-   * 
-   * Also check stamina beforehand.
+  /** * Starts the specified action a certain amount of time and write to log.
+   ** Also check stamina beforehand.
+   * @param {string} type Type of the action.
+   * @param {string} action Name of the action.
+   * @param {number} count The action count. Defaults to ```1```.
+   * @param {boolean} stamina Whether to check stamina. Set to ```false``` to avoid stamina check (and possible infinite loop). Defaults to ```true```.
+   * @param {boolean} blackOp Whether to check for Black Op. Set to ```false``` to disable Black Op (why?). Defaults to ```true```.
   */
   async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
     stamina && await checkStamina();
@@ -265,7 +274,7 @@ export async function main(ns) {
       if (rankGain[0] === Infinity) rankGain[0] = 0;
 
       if (blade.startAction(type, action)) {
-        ns.setTitle(action + (count > 1 ? ' x' + count : ''));
+        ns.setTitle(action + (count > 1 ? ' x' + (i + 1) : ''));
         const totalTime = blade.getActionTime(type, action);
         let current = currentTime();
         while (current < totalTime) {
@@ -344,16 +353,10 @@ export async function main(ns) {
         ns.closeTail();
         // Log the time of the Daedalus completion to terminal
         // Only if Daedalus is actually performed, not just finished
-        const time = new Date();
-        ns.tprintf(
-          `\n(!) Finished Daedalus at: ` +
-          `${time.getHours() < 10 ? '0' : ''}${time.getHours()}:` +
-          `${time.getMinutes() < 10 ? '0' : ''}${time.getMinutes()}:` +
-          `${time.getSeconds() < 10 ? '0' : ''}${time.getSeconds()}`,
-          0
-        );
+        ns.tprintf(`\n(!) Finished Daedalus at: ${(new Date()).toLocaleString()}`, 0);
         ns.exit();
       }
+
       if (blade.getRank() < blade.getBlackOpRank(currentBlackOp)) return;
       await checkAccuracy('blackop', currentBlackOp);
       if (successChance('blackop', currentBlackOp)[0] < chanceLimits.blackOp) return;
