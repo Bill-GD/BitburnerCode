@@ -1,14 +1,11 @@
-/** Version 2.3.1
- * Sell excess production boost materials as much as possible per cycle
- * Fixed Market-TA handling for divisions/industries that doesn't produce materials
+/** Version 2.3.2
+ * Explicitly use ns.corporation to test ramReader
  */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL');
   ns.tail();
   ns.clearLog();
-
-  const corp = ns.corporation;
 
   const colors = {
     section: getColor(ns.ui.getTheme().money),
@@ -123,9 +120,9 @@ export async function main(ns) {
     },
   };
 
-  if (!corp.hasCorporation()) {
+  if (!ns.corporation.hasCorporation()) {
     try {
-      corp.createCorporation('BillCorp', false);
+      ns.corporation.createCorporation('BillCorp', false);
     } catch { }
     try {
       if (!(await ns.prompt(
@@ -138,11 +135,11 @@ export async function main(ns) {
         ns.closeTail();
         ns.exit();
       }
-      corp.createCorporation('BillCorp', true);
+      ns.corporation.createCorporation('BillCorp', true);
     } catch { }
   }
 
-  const corpInfo = () => corp.getCorporation();
+  const corpInfo = () => ns.corporation.getCorporation();
   const getDivisions = () => corpInfo().divisions;
   const getFunds = () => corpInfo().funds;
 
@@ -157,7 +154,7 @@ export async function main(ns) {
   const researches = Object.values(Enums.Research);
   const upgrades = Object.values(Enums.Upgrade);
 
-  try { corp.purchaseUnlock(Enums.Unlock.SmartSupply); } catch { }
+  try { ns.corporation.purchaseUnlock(Enums.Unlock.SmartSupply); } catch { }
 
   while (true) {
     ns.clearLog();
@@ -215,41 +212,41 @@ export async function main(ns) {
         initDivision(Enums.IndustryType.Agriculture, agricultureName);
         buyFirstUpgrades();
         Object.values(ns.enums.CityName).forEach(city => {
-          corp.sellMaterial(agricultureName, city, 'Plants', 'MAX', 'MP');
-          corp.sellMaterial(agricultureName, city, 'Food', 'MAX', 'MP');
+          ns.corporation.sellMaterial(agricultureName, city, 'Plants', 'MAX', 'MP');
+          ns.corporation.sellMaterial(agricultureName, city, 'Food', 'MAX', 'MP');
         });
 
         stage = 1;
         break;
       case 1: // more upgrades
         upgrades.slice(0, 5).forEach(upgrade => {
-          if (corp.getUpgradeLevel(upgrade) < 10)
-            try { corp.levelUpgrade(upgrade); } catch { }
+          if (ns.corporation.getUpgradeLevel(upgrade) < 10)
+            try { ns.corporation.levelUpgrade(upgrade); } catch { }
         });
 
-        if (corp.getDivision(agricultureName).numAdVerts < 10)
-          try { corp.hireAdVert(agricultureName); } catch { }
+        if (ns.corporation.getDivision(agricultureName).numAdVerts < 10)
+          try { ns.corporation.hireAdVert(agricultureName); } catch { }
 
         if (getFunds() > 1e12)
           stage = 2;
         break;
       case 2: // expand to chemical & tobacco
-        try { corp.purchaseUnlock(Enums.Unlock.Export); } catch { }
+        try { ns.corporation.purchaseUnlock(Enums.Unlock.Export); } catch { }
 
         initDivision(Enums.IndustryType.Chemical, chemicalName);
         Object.values(ns.enums.CityName).forEach(city => {
-          corp.sellMaterial(chemicalName, city, 'Chemicals', 'MAX', 'MP');
+          ns.corporation.sellMaterial(chemicalName, city, 'Chemicals', 'MAX', 'MP');
           try {
-            corp.exportMaterial(agricultureName, city, chemicalName, city, 'Plants', '-IPROD');
-            corp.exportMaterial(chemicalName, city, agricultureName, city, 'Chemicals', '-IPROD');
-            corp.sellMaterial(chemicalName, city, 'Chemicals', 'MAX', 'MP');
+            ns.corporation.exportMaterial(agricultureName, city, chemicalName, city, 'Plants', '-IPROD');
+            ns.corporation.exportMaterial(chemicalName, city, agricultureName, city, 'Chemicals', '-IPROD');
+            ns.corporation.sellMaterial(chemicalName, city, 'Chemicals', 'MAX', 'MP');
           } catch { }
         });
 
         initDivision(Enums.IndustryType.Tobacco, tobaccoName);
         Object.values(ns.enums.CityName).forEach(city => {
           try {
-            corp.exportMaterial(agricultureName, city, tobaccoName, city, 'Plants', '-IPROD');
+            ns.corporation.exportMaterial(agricultureName, city, tobaccoName, city, 'Plants', '-IPROD');
           } catch { }
         });
 
@@ -257,13 +254,13 @@ export async function main(ns) {
         break;
       case 3: // more upgrades
         upgrades.slice(0, 7).forEach(upgrade => {
-          if (corp.getUpgradeLevel(upgrade) < 20)
-            try { corp.levelUpgrade(upgrade); } catch { }
+          if (ns.corporation.getUpgradeLevel(upgrade) < 20)
+            try { ns.corporation.levelUpgrade(upgrade); } catch { }
         });
 
         getDivisions().forEach(div => {
-          if (corp.getDivision(div).numAdVerts < 20)
-            try { corp.hireAdVert(div); } catch { }
+          if (ns.corporation.getDivision(div).numAdVerts < 20)
+            try { ns.corporation.hireAdVert(div); } catch { }
         });
 
         if (getFunds() > 20e12)
@@ -273,35 +270,35 @@ export async function main(ns) {
         initDivision(Enums.IndustryType.Mining, miningName);
         Object.values(ns.enums.CityName).forEach(city => {
           try {
-            corp.sellMaterial(miningName, city, 'Ore', 'MAX', 'MP');
-            corp.sellMaterial(miningName, city, 'Minerals', 'MAX', 'MP');
+            ns.corporation.sellMaterial(miningName, city, 'Ore', 'MAX', 'MP');
+            ns.corporation.sellMaterial(miningName, city, 'Minerals', 'MAX', 'MP');
           } catch { }
         });
 
         initDivision(Enums.IndustryType.Refinery, refineName);
         Object.values(ns.enums.CityName).forEach(city => {
           try {
-            corp.sellMaterial(refineName, city, 'Metal', 'MAX', 'MP');
-            corp.exportMaterial(miningName, city, refineName, city, 'Ore', '-IPROD');
+            ns.corporation.sellMaterial(refineName, city, 'Metal', 'MAX', 'MP');
+            ns.corporation.exportMaterial(miningName, city, refineName, city, 'Ore', '-IPROD');
           } catch { }
         });
 
         initDivision(Enums.IndustryType.Computers, hardwareName);
         Object.values(ns.enums.CityName).forEach(city => {
           try {
-            corp.sellMaterial(hardwareName, city, 'Hardware', 'MAX', 'MP');
-            corp.exportMaterial(hardwareName, city, miningName, city, 'Hardware', '-IPROD');
-            corp.exportMaterial(refineName, city, hardwareName, city, 'Metal', '-IPROD');
+            ns.corporation.sellMaterial(hardwareName, city, 'Hardware', 'MAX', 'MP');
+            ns.corporation.exportMaterial(hardwareName, city, miningName, city, 'Hardware', '-IPROD');
+            ns.corporation.exportMaterial(refineName, city, hardwareName, city, 'Metal', '-IPROD');
           } catch { }
         });
 
         initDivision(Enums.IndustryType.WaterUtil, waterName);
         Object.values(ns.enums.CityName).forEach(city => {
           try {
-            corp.exportMaterial(waterName, city, agricultureName, city, 'Water', '-IPROD');
-            corp.exportMaterial(waterName, city, chemicalName, city, 'Water', '-IPROD');
-            corp.exportMaterial(hardwareName, city, waterName, city, 'Hardware', '-IPROD');
-            corp.sellMaterial(waterName, city, 'Water', 'MAX', 'MP');
+            ns.corporation.exportMaterial(waterName, city, agricultureName, city, 'Water', '-IPROD');
+            ns.corporation.exportMaterial(waterName, city, chemicalName, city, 'Water', '-IPROD');
+            ns.corporation.exportMaterial(hardwareName, city, waterName, city, 'Hardware', '-IPROD');
+            ns.corporation.sellMaterial(waterName, city, 'Water', 'MAX', 'MP');
           } catch { }
         });
 
@@ -309,14 +306,14 @@ export async function main(ns) {
         break;
       case 5: // more upgrades
         upgrades.forEach(upgrade => {
-          // if (corp.getUpgradeLevel(upgrade) < 20)
-          if (corp.getUpgradeLevelCost(upgrade) < getFunds() / Math.max(1, Math.log(corp.getUpgradeLevel(upgrade)) * 1.6 / Math.LN10))
-            try { corp.levelUpgrade(upgrade); } catch { }
+          // if (ns.corporation.getUpgradeLevel(upgrade) < 20)
+          if (ns.corporation.getUpgradeLevelCost(upgrade) < getFunds() / Math.max(1, Math.log(ns.corporation.getUpgradeLevel(upgrade)) * 1.6 / Math.LN10))
+            try { ns.corporation.levelUpgrade(upgrade); } catch { }
         });
 
         getDivisions().forEach(division => {
-          if (corp.getHireAdVertCost(division) < getFunds() / Math.max(1, Math.log(corp.getDivision(division).numAdVerts) * 1.6 / Math.LN10))
-            try { corp.hireAdVert(division); } catch { }
+          if (ns.corporation.getHireAdVertCost(division) < getFunds() / Math.max(1, Math.log(ns.corporation.getDivision(division).numAdVerts) * 1.6 / Math.LN10))
+            try { ns.corporation.hireAdVert(division); } catch { }
         });
         break;
     }
@@ -343,25 +340,25 @@ export async function main(ns) {
     if (!getDivisions().includes(division)) return;
     Object.values(ns.enums.CityName).forEach(city => {
       if (isTrickingInvestor) {
-        boostMaterials.forEach(m => corp.buyMaterial(division, city, m, 0));
+        boostMaterials.forEach(m => ns.corporation.buyMaterial(division, city, m, 0));
       }
       else {
-        const warehouseSize = corp.getWarehouse(division, city).size;
+        const warehouseSize = ns.corporation.getWarehouse(division, city).size;
         const boostMaterialCount = desiredRatio.map(m => m * warehouseSize * boostMaterialRatio[desiredRatio.indexOf(m)]);
         for (let i = 0; i < 4; i++) {
           if (i === 0 && (division === hardwareName || division === waterName || division === miningName)) continue; // hardware
-          const stored = corp.getMaterial(division, city, boostMaterials[i]).stored;
+          const stored = ns.corporation.getMaterial(division, city, boostMaterials[i]).stored;
           if (stored < boostMaterialCount[i]) {
             // 10 -> buy all in 1 cycle
-            corp.buyMaterial(division, city, boostMaterials[i], (boostMaterialCount[i] - stored) / 10);
-            corp.sellMaterial(division, city, boostMaterials[i], '0', '0');
+            ns.corporation.buyMaterial(division, city, boostMaterials[i], (boostMaterialCount[i] - stored) / 10);
+            ns.corporation.sellMaterial(division, city, boostMaterials[i], '0', '0');
           }
           else {
-            corp.buyMaterial(division, city, boostMaterials[i], 0);
+            ns.corporation.buyMaterial(division, city, boostMaterials[i], 0);
             if (stored > boostMaterialCount[i])
-              corp.sellMaterial(division, city, boostMaterials[i], ((stored - boostMaterialCount[i]) / 10).toString(), 'MP');
+              ns.corporation.sellMaterial(division, city, boostMaterials[i], ((stored - boostMaterialCount[i]) / 10).toString(), 'MP');
             else
-              corp.sellMaterial(division, city, boostMaterials[i], '0', '0');
+              ns.corporation.sellMaterial(division, city, boostMaterials[i], '0', '0');
           }
         }
       }
@@ -373,8 +370,8 @@ export async function main(ns) {
     const upgradesStage1 = upgrades.slice(0, 5);
     for (let i = 0; i < 2; i++)
       upgradesStage1.forEach(up => {
-        if (corp.getUpgradeLevel(up) < 2 && getFunds() > corp.getUpgradeLevelCost(up))
-          try { corp.levelUpgrade(up); } catch { }
+        if (ns.corporation.getUpgradeLevel(up) < 2 && getFunds() > ns.corporation.getUpgradeLevelCost(up))
+          try { ns.corporation.levelUpgrade(up); } catch { }
       });
   }
 
@@ -385,20 +382,20 @@ export async function main(ns) {
    */
   function initDivision(industry, division) {
     try {
-      if (getDivisions().includes(division) || getFunds() < corp.getIndustryData(industry).startingCost * 1.5 + 45e9) return;
-      corp.expandIndustry(industry, division);
+      if (getDivisions().includes(division) || getFunds() < ns.corporation.getIndustryData(industry).startingCost * 1.5 + 45e9) return;
+      ns.corporation.expandIndustry(industry, division);
       for (let i = 0; i < 2; i++)
-        try { corp.hireAdVert(division); } catch { }
+        try { ns.corporation.hireAdVert(division); } catch { }
 
       Object.values(ns.enums.CityName).forEach(city => {
-        if (!corp.getDivision(division).cities.includes(city) && getFunds() >= 4e9)
-          corp.expandCity(division, city);
-        if (!corp.hasWarehouse(division, city) && getFunds() >= 5e9) {
-          corp.purchaseWarehouse(division, city);
+        if (!ns.corporation.getDivision(division).cities.includes(city) && getFunds() >= 4e9)
+          ns.corporation.expandCity(division, city);
+        if (!ns.corporation.hasWarehouse(division, city) && getFunds() >= 5e9) {
+          ns.corporation.purchaseWarehouse(division, city);
         }
-        corp.setSmartSupply(division, city, true);
-        if (corp.getWarehouse(division, city).level < 2)
-          corp.upgradeWarehouse(division, city, 2);
+        ns.corporation.setSmartSupply(division, city, true);
+        if (ns.corporation.getWarehouse(division, city).level < 2)
+          ns.corporation.upgradeWarehouse(division, city, 2);
       });
     } catch { }
   }
@@ -407,19 +404,19 @@ export async function main(ns) {
   function handleResearch() {
     getDivisions().forEach(division => {
       // check research root
-      if (!corp.hasResearched(division, Enums.Research.HiTechLab.name)) {
-        if (corp.getDivision(division).researchPoints - 15e2 < corp.getResearchCost(division, Enums.Research.HiTechLab.name))
+      if (!ns.corporation.hasResearched(division, Enums.Research.HiTechLab.name)) {
+        if (ns.corporation.getDivision(division).researchPoints - 15e2 < ns.corporation.getResearchCost(division, Enums.Research.HiTechLab.name))
           return;
-        corp.research(division, Enums.Research.HiTechLab.name);
+        ns.corporation.research(division, Enums.Research.HiTechLab.name);
       }
       try {
         researches.forEach(research => {
           // skip if: has researched, prereq not researched, insufficient point
-          if (corp.hasResearched(division, research.name)) return;
-          if (!corp.hasResearched(division, research.prerequisite)) return;
-          if (corp.getDivision(division).researchPoints - 15e2 < corp.getResearchCost(division, research.name)) return;
+          if (ns.corporation.hasResearched(division, research.name)) return;
+          if (!ns.corporation.hasResearched(division, research.prerequisite)) return;
+          if (ns.corporation.getDivision(division).researchPoints - 15e2 < ns.corporation.getResearchCost(division, research.name)) return;
 
-          corp.research(division, research.name);
+          ns.corporation.research(division, research.name);
         });
       } catch { }
     });
@@ -428,24 +425,24 @@ export async function main(ns) {
   /** Handles the Market TA toggling of every division. */
   function handleMarketTA() {
     getDivisions().forEach(div => {
-      const ta1 = corp.hasResearched(div, Enums.Research.MarketTA1.name),
-        ta2 = corp.hasResearched(div, Enums.Research.MarketTA2.name),
-        makeProduct = corp.getDivision(div).makesProducts;
-      const materials = corp.getIndustryData(corp.getDivision(div).type).producedMaterials;
-      const products = corp.getDivision(div).products;
+      const ta1 = ns.corporation.hasResearched(div, Enums.Research.MarketTA1.name),
+        ta2 = ns.corporation.hasResearched(div, Enums.Research.MarketTA2.name),
+        makeProduct = ns.corporation.getDivision(div).makesProducts;
+      const materials = ns.corporation.getIndustryData(ns.corporation.getDivision(div).type).producedMaterials;
+      const products = ns.corporation.getDivision(div).products;
 
       if (ta1) {
-        if (materials) Object.values(ns.enums.CityName).forEach(city => materials.forEach(m => corp.setMaterialMarketTA1(div, city, m, true)));
+        if (materials) Object.values(ns.enums.CityName).forEach(city => materials.forEach(m => ns.corporation.setMaterialMarketTA1(div, city, m, true)));
         if (makeProduct) products.forEach(p => {
-          if (corp.getProduct(div, ns.enums.CityName.Aevum, p).developmentProgress >= 100)
-            corp.setProductMarketTA1(div, p, true);
+          if (ns.corporation.getProduct(div, ns.enums.CityName.Aevum, p).developmentProgress >= 100)
+            ns.corporation.setProductMarketTA1(div, p, true);
         });
       }
       if (ta2) {
-        if (materials) Object.values(ns.enums.CityName).forEach(city => materials.forEach(m => corp.setMaterialMarketTA2(div, city, m, true)));
+        if (materials) Object.values(ns.enums.CityName).forEach(city => materials.forEach(m => ns.corporation.setMaterialMarketTA2(div, city, m, true)));
         if (makeProduct) products.forEach(p => {
-          if (corp.getProduct(div, ns.enums.CityName.Aevum, p).developmentProgress >= 100)
-            corp.setProductMarketTA2(div, p, true);
+          if (ns.corporation.getProduct(div, ns.enums.CityName.Aevum, p).developmentProgress >= 100)
+            ns.corporation.setProductMarketTA2(div, p, true);
         });
       }
     });
@@ -459,24 +456,24 @@ export async function main(ns) {
     getDivisions().forEach(division => {
       try {
         Object.values(ns.enums.CityName).forEach(city => {
-          const office = corp.getOffice(division, city);
+          const office = ns.corporation.getOffice(division, city);
           // get min size of all cities of every division
           const minSize = Math.min(
             ...new Set(
               getDivisions().map(
-                d => Object.values(ns.enums.CityName).map(c => corp.getOffice(d, c).size)
+                d => Object.values(ns.enums.CityName).map(c => ns.corporation.getOffice(d, c).size)
               ).reduce((acc, e) => [...acc, ...e], [])
             )
           );
           if (office.size > minSize) return;
           // before employee count reaches 9
           if (office.size < 9) {
-            if (corp.getOfficeSizeUpgradeCost(division, city, 3) < getFunds() * 0.7)
-              corp.upgradeOfficeSize(division, city, 3);
+            if (ns.corporation.getOfficeSizeUpgradeCost(division, city, 3) < getFunds() * 0.7)
+              ns.corporation.upgradeOfficeSize(division, city, 3);
           }
           // force employee count to be multiples of 9 
-          else if (corp.getOfficeSizeUpgradeCost(division, city, 9) < getFunds() * 0.7)
-            corp.upgradeOfficeSize(division, city, 9);
+          else if (ns.corporation.getOfficeSizeUpgradeCost(division, city, 9) < getFunds() * 0.7)
+            ns.corporation.upgradeOfficeSize(division, city, 9);
         });
       } catch { }
     });
@@ -488,37 +485,37 @@ export async function main(ns) {
   function hireNewEmployees() {
     getDivisions().forEach(division => {
       Object.values(ns.enums.CityName).forEach(city => {
-        const maxSize = corp.getOffice(division, city).size;
-        while (corp.getOffice(division, city).numEmployees < maxSize) {
-          switch (corp.getOffice(division, city).numEmployees % 9) {
+        const maxSize = ns.corporation.getOffice(division, city).size;
+        while (ns.corporation.getOffice(division, city).numEmployees < maxSize) {
+          switch (ns.corporation.getOffice(division, city).numEmployees % 9) {
             case 0:
             case 5:
-              corp.hireEmployee(division, city, Enums.Job.Operations);
+              ns.corporation.hireEmployee(division, city, Enums.Job.Operations);
               break;
             case 1:
             case 6:
-              corp.hireEmployee(division, city, Enums.Job.Engineer);
+              ns.corporation.hireEmployee(division, city, Enums.Job.Engineer);
               break;
             case 2:
-              corp.hireEmployee(division, city, Enums.Job.Business);
+              ns.corporation.hireEmployee(division, city, Enums.Job.Business);
               break;
             case 3:
-              corp.hireEmployee(division, city, Enums.Job.Management);
+              ns.corporation.hireEmployee(division, city, Enums.Job.Management);
               break;
             case 4:
-              corp.hireEmployee(division, city, Enums.Job.RandD);
+              ns.corporation.hireEmployee(division, city, Enums.Job.RandD);
               break;
             case 7:
-              if (corp.hasResearched(division, Enums.Research.AutoBrew.name) && corp.hasResearched(division, Enums.Research.AutoPartyManager.name)) {
-                corp.hireEmployee(division, city, Enums.Job.Business);
+              if (ns.corporation.hasResearched(division, Enums.Research.AutoBrew.name) && ns.corporation.hasResearched(division, Enums.Research.AutoPartyManager.name)) {
+                ns.corporation.hireEmployee(division, city, Enums.Job.Business);
                 break;
               }
             case 8:
-              if (corp.hasResearched(division, Enums.Research.AutoBrew.name) && corp.hasResearched(division, Enums.Research.AutoPartyManager.name)) {
-                corp.hireEmployee(division, city, Enums.Job.Management);
+              if (ns.corporation.hasResearched(division, Enums.Research.AutoBrew.name) && ns.corporation.hasResearched(division, Enums.Research.AutoPartyManager.name)) {
+                ns.corporation.hireEmployee(division, city, Enums.Job.Management);
                 break;
               }
-              corp.hireEmployee(division, city, Enums.Job.Intern);
+              ns.corporation.hireEmployee(division, city, Enums.Job.Intern);
               break;
           }
         }
@@ -531,14 +528,14 @@ export async function main(ns) {
   */
   function handleIntern() {
     getDivisions().forEach(division => {
-      if (corp.hasResearched(division, Enums.Research.AutoBrew.name) && corp.hasResearched(division, Enums.Research.AutoPartyManager.name)) {
+      if (ns.corporation.hasResearched(division, Enums.Research.AutoBrew.name) && ns.corporation.hasResearched(division, Enums.Research.AutoPartyManager.name)) {
         Object.values(ns.enums.CityName).forEach(city => {
-          const info = corp.getOffice(division, city);
+          const info = ns.corporation.getOffice(division, city);
           if (info.employeeJobs.Intern === 0) return;
-          corp.setAutoJobAssignment(division, city, Enums.Job.Intern, 0);
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Intern, 0);
 
-          corp.setAutoJobAssignment(division, city, Enums.Job.Business, info.size * (2 / 9));
-          corp.setAutoJobAssignment(division, city, Enums.Job.Management, info.size * (2 / 9));
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Business, info.size * (2 / 9));
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Management, info.size * (2 / 9));
         });
       }
     });
@@ -549,20 +546,20 @@ export async function main(ns) {
     if (isTrickingInvestor) return;
     getDivisions().forEach(division => {
       Object.values(ns.enums.CityName).forEach(city => {
-        const info = corp.getWarehouse(division, city);
+        const info = ns.corporation.getWarehouse(division, city);
 
         const minSize = Math.min(
           ...new Set(
             getDivisions().map(
-              d => Object.values(ns.enums.CityName).map(c => corp.getWarehouse(d, c).size)
+              d => Object.values(ns.enums.CityName).map(c => ns.corporation.getWarehouse(d, c).size)
             ).reduce((acc, e) => [...acc, ...e], [])
           )
         );
         // if storage won't be full soon or total size exceeds minSize, skips
         if (info.sizeUsed < info.size * 0.99 && info.size > minSize) return;
 
-        if (corp.getUpgradeWarehouseCost(division, city, 1) < getFunds() * 0.6)
-          corp.upgradeWarehouse(division, city, 1);
+        if (ns.corporation.getUpgradeWarehouseCost(division, city, 1) < getFunds() * 0.6)
+          ns.corporation.upgradeWarehouse(division, city, 1);
       });
     });
   }
@@ -572,39 +569,39 @@ export async function main(ns) {
     const designInvest = 5e8,
       advInvest = 1e8;
     getDivisions().forEach(division => {
-      if (!corp.getDivision(division).makesProducts) return;
-      let divProducts = corp.getDivision(division).products;
+      if (!ns.corporation.getDivision(division).makesProducts) return;
+      let divProducts = ns.corporation.getDivision(division).products;
       // 1st product
       if (divProducts.length <= 0 && getFunds() < designInvest + advInvest) return;
       // later products
       if (divProducts.length > 0) {
         // only start next product if previous product is fully developed
-        if (corp.getProduct(division, ns.enums.CityName.Aevum, divProducts.slice(-1)[0]).developmentProgress < 100) return;
+        if (ns.corporation.getProduct(division, ns.enums.CityName.Aevum, divProducts.slice(-1)[0]).developmentProgress < 100) return;
         Object.values(ns.enums.CityName).forEach(city => {
-          corp.sellProduct(division, city, divProducts.slice(-1)[0], 'MAX', 'MP', true);
+          ns.corporation.sellProduct(division, city, divProducts.slice(-1)[0], 'MAX', 'MP', true);
         });
         // limit how often a product is created
         if (getFunds() < (designInvest + advInvest) * 8) return;
       }
 
       // remove oldest product if max product is reached
-      if (divProducts.length >= corp.getDivision(division).maxProducts) {
-        corp.discontinueProduct(division, divProducts[0]);
-        divProducts = corp.getDivision(division).products;
+      if (divProducts.length >= ns.corporation.getDivision(division).maxProducts) {
+        ns.corporation.discontinueProduct(division, divProducts[0]);
+        divProducts = ns.corporation.getDivision(division).products;
       }
 
-      const newProduct = `${corp.getDivision(division).type.replace(' ', '')}-` +
+      const newProduct = `${ns.corporation.getDivision(division).type.replace(' ', '')}-` +
         (divProducts.length <= 0
           ? '0'
           : `${parseInt(divProducts.slice(-1)[0].split('-')[1]) + 1}`);
 
-      corp.makeProduct(division, ns.enums.CityName.Aevum, newProduct, designInvest, advInvest);
+      ns.corporation.makeProduct(division, ns.enums.CityName.Aevum, newProduct, designInvest, advInvest);
     });
   }
 
   /** Check if Investment funds, accept if good. */
   function checkInvestment() {
-    const investOffer = corp.getInvestmentOffer();
+    const investOffer = ns.corporation.getInvestmentOffer();
     switch (investOffer.round) { // the round currently in, not done
       case 1:
         desiredInvestFunds = 2e12;
@@ -629,7 +626,7 @@ export async function main(ns) {
       return;
     }
 
-    corp.acceptInvestmentOffer();
+    ns.corporation.acceptInvestmentOffer();
     isTrickingInvestor = false;
     prevCycleInvestment = 0;
 
@@ -637,27 +634,27 @@ export async function main(ns) {
     if (!isTrickingInvestor)
       getDivisions().forEach(division => {
         Object.values(ns.enums.CityName).forEach(city => {
-          const info = corp.getOffice(division, city);
+          const info = ns.corporation.getOffice(division, city);
           switch (info.size) {
             case 3:
-              corp.setAutoJobAssignment(division, city, Enums.Job.Business, 1);
-              corp.setAutoJobAssignment(division, city, Enums.Job.Operations, 1);
-              corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, 1);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Business, 1);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Operations, 1);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Engineer, 1);
               break;
             case 6:
-              corp.setAutoJobAssignment(division, city, Enums.Job.Business, 1);
-              corp.setAutoJobAssignment(division, city, Enums.Job.Operations, 2);
-              corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, 1);
-              corp.setAutoJobAssignment(division, city, Enums.Job.Management, 1);
-              corp.setAutoJobAssignment(division, city, Enums.Job.RandD, 1);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Business, 1);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Operations, 2);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Engineer, 1);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Management, 1);
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.RandD, 1);
               break;
             default:
-              corp.setAutoJobAssignment(division, city, Enums.Job.Business, info.size * (1 / 9));
-              corp.setAutoJobAssignment(division, city, Enums.Job.Operations, info.size * (2 / 9));
-              corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, info.size * (2 / 9));
-              corp.setAutoJobAssignment(division, city, Enums.Job.Management, info.size * (1 / 9));
-              corp.setAutoJobAssignment(division, city, Enums.Job.RandD, info.size * (1 / 9));
-              corp.setAutoJobAssignment(division, city, Enums.Job.Intern, info.size * (2 / 9));
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Business, info.size * (1 / 9));
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Operations, info.size * (2 / 9));
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Engineer, info.size * (2 / 9));
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Management, info.size * (1 / 9));
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.RandD, info.size * (1 / 9));
+              ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Intern, info.size * (2 / 9));
           }
         });
       });
@@ -687,41 +684,41 @@ export async function main(ns) {
     // if there're no product when can produce or not yet developed at least 1, skip
     if (stage === 3)
       for (const div of divisions)
-        if (corp.getDivision(div).makesProducts) {
-          const allProducts = corp.getDivision(div).products;
+        if (ns.corporation.getDivision(div).makesProducts) {
+          const allProducts = ns.corporation.getDivision(div).products;
           if (allProducts.length === 0) return;
-          if (allProducts.length === 1 && corp.getProduct(div, ns.enums.CityName.Aevum, allProducts[0]).developmentProgress < 100) return;
+          if (allProducts.length === 1 && ns.corporation.getProduct(div, ns.enums.CityName.Aevum, allProducts[0]).developmentProgress < 100) return;
         }
 
     for (const division of divisions) {
       // if boost material purchase is not done, skip fraud this cycle
       for (const city of Object.values(ns.enums.CityName)) {
-        const warehouseSize = corp.getWarehouse(division, city).size;
+        const warehouseSize = ns.corporation.getWarehouse(division, city).size;
         for (const m of boostMaterials) {
           const index = boostMaterials.indexOf(m);
-          const stored = corp.getMaterial(division, city, m).stored;
-          if (stored < Enums.BoostMaterial[corp.getDivision(division).type][index] * warehouseSize * boostMaterialRatio[index])
+          const stored = ns.corporation.getMaterial(division, city, m).stored;
+          if (stored < Enums.BoostMaterial[ns.corporation.getDivision(division).type][index] * warehouseSize * boostMaterialRatio[index])
             return;
         }
       }
 
       Object.values(ns.enums.CityName).forEach(city => {
-        const info = corp.getOffice(division, city);
+        const info = ns.corporation.getOffice(division, city);
 
         if (info.numEmployees !== 0) {
-          corp.setAutoJobAssignment(division, city, Enums.Job.Operations, 0);
-          corp.setAutoJobAssignment(division, city, Enums.Job.Engineer, 0);
-          corp.setAutoJobAssignment(division, city, Enums.Job.Management, 0);
-          corp.setAutoJobAssignment(division, city, Enums.Job.RandD, 0);
-          corp.setAutoJobAssignment(division, city, Enums.Job.Intern, 0);
-          corp.setAutoJobAssignment(division, city, Enums.Job.Business, info.size);
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Operations, 0);
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Engineer, 0);
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Management, 0);
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.RandD, 0);
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Intern, 0);
+          ns.corporation.setAutoJobAssignment(division, city, Enums.Job.Business, info.size);
         }
 
         isTrickingInvestor = true;
         boostMaterials.forEach(m => {
           // if div doesn't need the material, sell it
-          if (!Object.keys(corp.getIndustryData(corp.getDivision(division).type).requiredMaterials).includes(m))
-            corp.sellMaterial(division, city, m, 'MAX', 'MP');
+          if (!Object.keys(ns.corporation.getIndustryData(ns.corporation.getDivision(division).type).requiredMaterials).includes(m))
+            ns.corporation.sellMaterial(division, city, m, 'MAX', 'MP');
         });
       });
     }
@@ -732,7 +729,7 @@ export async function main(ns) {
   function log(state) {
     ns.clearLog();
     const lines = [];
-    const investFunds = corp.getInvestmentOffer().funds;
+    const investFunds = ns.corporation.getInvestmentOffer().funds;
     const profit = (corpInfo().revenue - corpInfo().expenses) * 10;
 
     lines.push(` sCurrent Stage: v${stage}`);
@@ -741,12 +738,12 @@ export async function main(ns) {
     lines.push(` sShares: v${ns.formatNumber(corpInfo().numShares, 3)}`);
     lines.push(` sProfit: ` + (profit > 0 ? `g` : `r`) + `$${ns.formatNumber(profit, 3)} v/ cycle`);
     lines.push(` sInvestment`);
-    lines.push(`  m Round:    v${corp.getInvestmentOffer().round}`);
+    lines.push(`  m Round:    v${ns.corporation.getInvestmentOffer().round}`);
     lines.push(`  m Current:  v$${ns.formatNumber(investFunds, 3)} / $${ns.formatNumber(desiredInvestFunds, 3)}`);
     lines.push(`  l Progress: v${progressBar(investFunds, desiredInvestFunds)}\n`);
 
     getDivisions().forEach(div => {
-      const info = corp.getDivision(div);
+      const info = ns.corporation.getDivision(div);
       lines.push(` sDivision: v${div}`);
       const dProfit = (info.lastCycleRevenue - info.lastCycleExpenses) * 10;
 
@@ -769,7 +766,7 @@ export async function main(ns) {
       .replaceAll(' r', ` ${getColor('#ff0000')}`)
     );
 
-    ns.resizeTail((maxWidth) * 10, lines.length * 25 + 25);
+    ns.resizeTail((maxWidth) * 10, lines.length * 25 + 50);
   }
 
   function getColor(colorHex = '#ffffff') {

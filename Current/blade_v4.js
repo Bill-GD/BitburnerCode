@@ -1,8 +1,5 @@
-/** Version 4.9.7
- * General actions are skipped if contract chances are sufficient
- * Check accuracy of operations
- * Log title is now the current action
- * Changed Daedalus log time format
+/** Version 4.9.8
+ * Explicitly use ns.bladeburner to test ramReader
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -22,10 +19,8 @@ export async function main(ns) {
     value: getColor(ns.ui.getTheme().white),
   };
 
-  const blade = ns.bladeburner;
-
   try {
-    blade.getContractNames();
+    ns.bladeburner.getContractNames();
   } catch (error) {
     ns.alert(`Haven't joined Bladeburner yet\n`);
     ns.exit();
@@ -33,21 +28,21 @@ export async function main(ns) {
 
   // shortened function
   const player = () => ns.getPlayer();
-  const successChance = (type = '', name = '') => blade.getActionEstimatedSuccessChance(type, name);
-  const populationOf = city => blade.getCityEstimatedPopulation(city);
-  const currentTime = () => blade.getActionCurrentTime();
-  const actionCount = (type = '', name = '') => blade.getActionCountRemaining(type, name);
-  const requiredSP = skill => blade.getSkillUpgradeCost(skill);
+  const successChance = (type = '', name = '') => ns.bladeburner.getActionEstimatedSuccessChance(type, name);
+  const populationOf = city => ns.bladeburner.getCityEstimatedPopulation(city);
+  const currentTime = () => ns.bladeburner.getActionCurrentTime();
+  const actionCount = (type = '', name = '') => ns.bladeburner.getActionCountRemaining(type, name);
+  const requiredSP = skill => ns.bladeburner.getSkillUpgradeCost(skill);
 
   // for chaos purpose
-  const stealthSuccessMult = () => blade.getSkillLevel(`Cloak`) * 0.055 + 1;
-  const retirementSuccessMult = () => blade.getSkillLevel(`Short-Circuit`) * 0.055 + 1;
-  const opSuccessMult = () => blade.getSkillLevel(`Digital Observer`) * 0.04 + 1;
+  const stealthSuccessMult = () => ns.bladeburner.getSkillLevel(`Cloak`) * 0.055 + 1;
+  const retirementSuccessMult = () => ns.bladeburner.getSkillLevel(`Short-Circuit`) * 0.055 + 1;
+  const opSuccessMult = () => ns.bladeburner.getSkillLevel(`Digital Observer`) * 0.04 + 1;
 
   // const
   const cities = Object.keys(ns.enums.CityName).map(c => ns.enums.CityName[c]);
-  const contracts = blade.getContractNames().reverse();
-  const operations = blade.getOperationNames();
+  const contracts = ns.bladeburner.getContractNames().reverse();
+  const operations = ns.bladeburner.getOperationNames();
   operations.splice(3, 1); // removes 'Raid'
   operations.reverse();
 
@@ -74,7 +69,7 @@ export async function main(ns) {
         await checkCity();
         await checkAccuracy('contract', con);
         if (successChance('contract', con)[0] < chanceLimits.contract || !checkWorkCount('contract', con)) continue;
-        await performAction('contract', con, Math.min(10, actionCount('contract', con)));
+        await performAction('contract', con, Math.min(actionCount('contract', con), 10));
         await ns.sleep(10);
       }
     }
@@ -83,7 +78,7 @@ export async function main(ns) {
     if (currentOp !== '') {
       await checkCity();
       await checkAccuracy('op', currentOp);
-      await performAction('op', currentOp, Math.trunc(Math.random() * 7 + 13)); // 13-20
+      await performAction('op', currentOp, Math.min(actionCount('op', currentOp), Math.trunc(Math.random() * 7 + 13))); // 13-20
     }
   }
 
@@ -93,22 +88,18 @@ export async function main(ns) {
 
     const lines = [];
 
-    const city = blade.getCity();
+    const city = ns.bladeburner.getCity();
     let maxSkillWidth = Math.max('Rank'.length, 'Skill Points'.length);
-    let skillCount = 0;
-    blade.getSkillNames().forEach(skill => {
-      if (blade.getSkillLevel(skill) > 0) {
+    ns.bladeburner.getSkillNames().forEach(skill => {
+      if (ns.bladeburner.getSkillLevel(skill) > 0)
         maxSkillWidth = Math.max(maxSkillWidth, skill.length);
-        skillCount++;
-      }
     });
-    const currentSP = blade.getSkillPoints();
-    const currentRank = blade.getRank();
-    const blackOpRank = blade.getBlackOpRank(currentBlackOp);
+    const currentSP = ns.bladeburner.getSkillPoints();
+    const currentRank = ns.bladeburner.getRank();
+    const blackOpRank = ns.bladeburner.getBlackOpRank(currentBlackOp);
     const rankMet = currentRank > blackOpRank;
     const taskCount = actionCount(type, name);
-    const totalTime = blade.getActionTime(type, name);
-    let lineCount = 21;
+    const totalTime = ns.bladeburner.getActionTime(type, name);
 
     lines.push(' h----------------==={ sCURRENT h}===------------------');
     const task = `${name}` + (maxCount > 1 ? ` (${count} / ${maxCount})` : '');
@@ -118,12 +109,12 @@ export async function main(ns) {
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${formatTime(currentTime())} / ${formatTime(totalTime)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(currentTime(), totalTime, 20)}`);
     (taskCount !== Infinity && taskCount !== 1) && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${taskCount}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v${ns.formatPercent(blade.getStamina()[0] / blade.getStamina()[1], 3)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v${ns.formatPercent(ns.bladeburner.getStamina()[0] / ns.bladeburner.getStamina()[1], 3)}`);
 
     lines.push(' h------------------==={ sCITY h}===-------------------');
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${city}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(populationOf(city), 3)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(blade.getCityChaos(city), 3)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(ns.bladeburner.getCityChaos(city), 3)}`);
 
     lines.push(' h-----------------==={ sSKILLS h}===------------------');
     const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
@@ -134,16 +125,15 @@ export async function main(ns) {
     lines.push(`${fillWhitespaces(divider.length / 3 - 11)} hSkill Points: v${ns.formatNumber(currentSP, 3)}` +
       `${spGainAvg > 0 ? ` (+${Math.trunc(spGainAvg)} \u00b1` + ` ${Math.trunc(Math.abs(rankGain[1] / 3 - spGainAvg))})` : ''}`);
 
-    blade.getSkillNames().forEach(skill => {
-      if (blade.getSkillLevel(skill) > 0) {
+    ns.bladeburner.getSkillNames().forEach(skill => {
+      if (ns.bladeburner.getSkillLevel(skill) > 0) {
         const sp = requiredSP(skill);
         lines.push(
-          `${fillWhitespaces(divider.length / 3 - (skill.length) + 1)} h${skill}: v${ns.formatNumber(blade.getSkillLevel(skill), 3)} - ` +
-          (skill === 'Overclock' && blade.getSkillLevel(skill) >= 90 ? 'MAX' :
-            (blade.getSkillPoints() >= sp ? `${getColor('#00ff00')}`
+          `${fillWhitespaces(divider.length / 3 - (skill.length) + 1)} h${skill}: v${ns.formatNumber(ns.bladeburner.getSkillLevel(skill), 3)} - ` +
+          (skill === 'Overclock' && ns.bladeburner.getSkillLevel(skill) >= 90 ? 'MAX' :
+            (ns.bladeburner.getSkillPoints() >= sp ? `${getColor('#00ff00')}`
               : `${getColor('#ff0000')}`) + `${sp}`)
         );
-        lineCount++;
       }
     });
 
@@ -175,7 +165,7 @@ export async function main(ns) {
 
     if (citiesCopy.length > 0) {
       citiesCopy.sort((a, b) => getAverageChance(a) - getAverageChance(b));
-      blade.switchCity(citiesCopy[citiesCopy.length - 1]);
+      ns.bladeburner.switchCity(citiesCopy[citiesCopy.length - 1]);
     }
 
     await ns.sleep(50);
@@ -186,7 +176,7 @@ export async function main(ns) {
    * Since this is hardcoded and there's no way to dynamically calculate them (Bitburner doesn't provide any way to get ```weight``` and ```decay```), this CAN break if the source changes.
    * @formula ```chance = competence / difficulty```
    * @see https://github.com/bitburner-official/bitburner-src/blob/dev/src/Bladeburner/Action.tsx#L239
-  */
+   */
   function getAverageChance(city = '') {
     return Math.min(1, getCompetence(city) / getDifficulty(city));
   }
@@ -196,8 +186,8 @@ export async function main(ns) {
    */
   function getChaosThreshold(city = '', chance = 1) {
     let contractLevel = 0, opLevel = 0;
-    contracts.forEach(c => contractLevel += blade.getActionCurrentLevel('contract', c));
-    operations.forEach(op => opLevel += blade.getActionCurrentLevel('op', op));
+    contracts.forEach(c => contractLevel += ns.bladeburner.getActionCurrentLevel('contract', c));
+    operations.forEach(op => opLevel += ns.bladeburner.getActionCurrentLevel('op', op));
     const averageActionLevel = (contractLevel / contracts.length + opLevel / operations.length) / 2;
 
     return Math.pow(getCompetence(city) / (100 * chance * Math.pow((1.03 + 1.044) / 2, averageActionLevel - 1)), 2) + 49;
@@ -215,9 +205,9 @@ export async function main(ns) {
     competence += 0.097 * Math.pow(1 * player().skills.intelligence, 0.908);
 
     competence *= 1 + (0.75 * Math.pow(player().skills.intelligence, 0.8)) / 600;
-    competence *= Math.min(1, blade.getStamina()[0] / (0.5 * blade.getStamina()[1]));
+    competence *= Math.min(1, ns.bladeburner.getStamina()[0] / (0.5 * ns.bladeburner.getStamina()[1]));
     competence *= Math.pow(populationOf(city) / 1e9, 0.7);
-    competence *= (blade.getSkillLevel(`Blade's Intuition`) * 0.03 + 1);
+    competence *= (ns.bladeburner.getSkillLevel(`Blade's Intuition`) * 0.03 + 1);
     competence *= ((stealthSuccessMult() + retirementSuccessMult() * 2) / 3
       + (stealthSuccessMult() * 3 + retirementSuccessMult() + stealthSuccessMult() * retirementSuccessMult() * 2) * opSuccessMult() / 6) / 2;
     competence *= player().mults.bladeburner_success_chance;
@@ -228,11 +218,11 @@ export async function main(ns) {
   // average difficultyFac: contract - 1.03, op - 1.044
   function getDifficulty(city) {
     let contractLevel = 0, opLevel = 0;
-    contracts.forEach(c => contractLevel += blade.getActionCurrentLevel('contract', c));
-    operations.forEach(op => opLevel += blade.getActionCurrentLevel('op', op));
+    contracts.forEach(c => contractLevel += ns.bladeburner.getActionCurrentLevel('contract', c));
+    operations.forEach(op => opLevel += ns.bladeburner.getActionCurrentLevel('op', op));
     const averageActionLevel = (contractLevel / contracts.length + opLevel / operations.length) / 2;
 
-    const chaos = blade.getCityChaos(city);
+    const chaos = ns.bladeburner.getCityChaos(city);
     let chaosBonus = chaos > 50 ? Math.pow(chaos - 49, 0.5) : 1;
 
     return 100 * Math.pow((1.03 + 1.044) / 2, averageActionLevel - 1) * chaosBonus;
@@ -255,8 +245,8 @@ export async function main(ns) {
   async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
     stamina && await checkStamina();
     if (currentBlackOp === '') { // Daedalus is done
-      ns.alert(`=====  Operation Daedalus is accomplished  =====\n(!) Destroy this BitNode when you're ready (!)`);
-      blade.stopBladeburnerAction();
+      ns.alert(`|  Operation Daedalus is accomplished  |\nDestroy this BitNode when you're ready`);
+      ns.bladeburner.stopBladeburnerAction();
       ns.closeTail();
       ns.exit();
     }
@@ -265,7 +255,7 @@ export async function main(ns) {
       // if (action === 'Field Analysis' || type === 'contract' || type === 'op' || type === 'blackop') {
       rankGain = [Infinity, 0];
       for (let j = 0; j < 50; j++) {
-        const repGain = blade.getActionRepGain(type, action);
+        const repGain = ns.bladeburner.getActionRepGain(type, action);
         const rank = repGain + (Math.random() * (repGain * 0.2) - repGain * 0.1);
         rankGain[0] = Math.min(rank, rankGain[0]);
         rankGain[1] = Math.max(rank, rankGain[1]);
@@ -273,16 +263,16 @@ export async function main(ns) {
       // }
       if (rankGain[0] === Infinity) rankGain[0] = 0;
 
-      if (blade.startAction(type, action)) {
-        ns.setTitle(action + (count > 1 ? ' x' + (i + 1) : ''));
-        const totalTime = blade.getActionTime(type, action);
+      if (ns.bladeburner.startAction(type, action)) {
+        ns.setTitle(action + (count > 1 ? ' ' + (i + 1) + '/' + count : ''));
+        const totalTime = ns.bladeburner.getActionTime(type, action);
         let current = currentTime();
         while (current < totalTime) {
-          logAction(blade.getCurrentAction().type, blade.getCurrentAction().name, i + 1, count);
+          logAction(ns.bladeburner.getCurrentAction().type, ns.bladeburner.getCurrentAction().name, i + 1, count);
           await ns.sleep(1e3);
           current = currentTime();
-          if (blade.getBonusTime() <= 1e3 && current === 0) break;
-          if (blade.getBonusTime() > 1e3 && current < 5e3) break;
+          if (ns.bladeburner.getBonusTime() <= 1e3 && current === 0) break;
+          if (ns.bladeburner.getBonusTime() > 1e3 && current < 5e3) break;
         }
         await upgradeSkills();
         blackOp && await checkBlackOps();
@@ -293,28 +283,28 @@ export async function main(ns) {
 
   /** Rest (loop) if stamina is less than half. Rest until full. */
   async function checkStamina() {
-    if (blade.getStamina()[0] < 0.5 * blade.getStamina()[1])
-      while (blade.getStamina()[0] < blade.getStamina()[1])
+    if (ns.bladeburner.getStamina()[0] < 0.5 * ns.bladeburner.getStamina()[1])
+      while (ns.bladeburner.getStamina()[0] < ns.bladeburner.getStamina()[1])
         await performAction('general', 'Hyperbolic Regeneration Chamber', 1, false);
   }
 
   /** Continuously upgrade skill while SP is sufficient. */
   async function upgradeSkills() {
-    const allSkills = blade.getSkillNames();
+    const allSkills = ns.bladeburner.getSkillNames();
     const skillIndex = [0, 1, 2, 3, 5, 6, 7, 11];
 
     const chosenSkills = [];
     skillIndex.forEach(i => {
-      if (i === 5 && blade.getSkillLevel(allSkills[i]) >= 90) return;
+      if (i === 5 && ns.bladeburner.getSkillLevel(allSkills[i]) >= 90) return;
       chosenSkills.push(allSkills[i]);
     });
 
     chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
 
-    while (blade.getSkillPoints() >= requiredSP(chosenSkills[0])) {
-      if (chosenSkills[0] === 'Overclock' && blade.getSkillLevel(chosenSkills[0]) >= 90)
+    while (ns.bladeburner.getSkillPoints() >= requiredSP(chosenSkills[0])) {
+      if (chosenSkills[0] === 'Overclock' && ns.bladeburner.getSkillLevel(chosenSkills[0]) >= 90)
         chosenSkills.splice(0, 1);
-      blade.upgradeSkill(chosenSkills[0]);
+      ns.bladeburner.upgradeSkill(chosenSkills[0]);
       chosenSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
       await ns.sleep(10);
     }
@@ -333,8 +323,8 @@ export async function main(ns) {
    * @see {@link getChaosThreshold()}
    */
   async function checkChaos() {
-    const currentCity = blade.getCity();
-    const chaos = blade.getCityChaos(currentCity);
+    const currentCity = ns.bladeburner.getCity();
+    const chaos = ns.bladeburner.getCityChaos(currentCity);
     if (chaos <= 50) return;
 
     if (chaos > getChaosThreshold(currentCity, 0.3)) {
@@ -349,7 +339,7 @@ export async function main(ns) {
     while (await ns.sleep(10)) {
       if (currentBlackOp === '') { // Daedalus is done
         ns.alert(`=====  Operation Daedalus is accomplished  =====\n(!) Destroy this BitNode when you're ready (!)`);
-        blade.stopBladeburnerAction();
+        ns.bladeburner.stopBladeburnerAction();
         ns.closeTail();
         // Log the time of the Daedalus completion to terminal
         // Only if Daedalus is actually performed, not just finished
@@ -357,7 +347,7 @@ export async function main(ns) {
         ns.exit();
       }
 
-      if (blade.getRank() < blade.getBlackOpRank(currentBlackOp)) return;
+      if (ns.bladeburner.getRank() < ns.bladeburner.getBlackOpRank(currentBlackOp)) return;
       await checkAccuracy('blackop', currentBlackOp);
       if (successChance('blackop', currentBlackOp)[0] < chanceLimits.blackOp) return;
 
@@ -374,7 +364,7 @@ export async function main(ns) {
 
   function getCurrentBlackOp() {
     let currentBlackOp = '';
-    blade.getBlackOpNames().forEach(bo => {
+    ns.bladeburner.getBlackOpNames().forEach(bo => {
       if (currentBlackOp !== '') return;
       if (actionCount('blackop', bo) > 0) {
         currentBlackOp = bo;
