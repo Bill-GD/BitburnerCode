@@ -1,5 +1,5 @@
-/** Version 2.0.4
- * Now uses the same method as HUD to get BitNode and level
+/** Version 2.0.7
+ * Re-positioned fragments in size [7,7], adding Hacknet Prod
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -45,11 +45,12 @@ export async function main(ns) {
     ns.stanek.placeFragment(0, 0, 3, Fragments.Strength);
     ns.stanek.placeFragment(2, 2, 0, Fragments.Agility);
     ns.stanek.placeFragment(1, 0, 3, Fragments.Defense);
-    ns.stanek.placeFragment(0, 5, 0, Fragments.Dexterity);
-    ns.stanek.placeFragment(4, 5, 0, Fragments.Blade);
-    ns.stanek.placeFragment(5, 2, 3, Fragments.Crime);
-    ns.stanek.placeFragment(0, 3, 0, 106);
-    ns.stanek.placeFragment(3, 3, 0, 105);
+    ns.stanek.placeFragment(5, 4, 1, Fragments.Dexterity);
+    ns.stanek.placeFragment(0, 5, 0, Fragments.Blade);
+    ns.stanek.placeFragment(2, 5, 0, Fragments.Crime);
+    ns.stanek.placeFragment(6, 2, 1, Fragments.HacknetProd);
+    ns.stanek.placeFragment(0, 2, 3, 106);
+    ns.stanek.placeFragment(3, 3, 2, 105);
     ns.stanek.placeFragment(3, 0, 2, 101);
   }
   if (compareSize(size, [7, 6])) {
