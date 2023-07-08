@@ -1,5 +1,6 @@
-/** Version 4.9.8
- * Explicitly use ns.bladeburner to test ramReader
+/** Version 4.10
+ * Now continue with Blade even after Daedalus is completed
+ * Log title now shows more info
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -27,7 +28,6 @@ export async function main(ns) {
   }
 
   // shortened function
-  const player = () => ns.getPlayer();
   const successChance = (type = '', name = '') => ns.bladeburner.getActionEstimatedSuccessChance(type, name);
   const populationOf = city => ns.bladeburner.getCityEstimatedPopulation(city);
   const currentTime = () => ns.bladeburner.getActionCurrentTime();
@@ -46,7 +46,19 @@ export async function main(ns) {
   operations.splice(3, 1); // removes 'Raid'
   operations.reverse();
 
+  let continueBlade = false;
   let currentBlackOp = getCurrentBlackOp();
+
+  if (currentBlackOp === '') {
+    continueBlade = await ns.prompt('Operation Daedalus is completed\n' + 'Continue anyway?');
+    if (!continueBlade) {
+      ns.bladeburner.stopBladeburnerAction();
+      ns.closeTail();
+      ns.exit();
+    }
+  }
+
+  currentBlackOp = getCurrentBlackOp();
   let currentOp = getBestOp();
 
   let rankGain = [Infinity, 0];
@@ -142,11 +154,14 @@ export async function main(ns) {
     lines.push(`${fillWhitespaces(divider.length / 10 - 1)} hAvg. Operation: v${ns.formatPercent(averageTaskChance('op', operations), 2)}`);
 
     lines.push(' h----------------==={ sBLACK OP h}===-----------------');
-    const chance = successChance('blackop', currentBlackOp)[0];
-    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp}`);
-    lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hRank: v${ns.formatNumber(blackOpRank, 3)} -` +
-      ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRank)}`);
+    if (!continueBlade) {
+      const chance = successChance('blackop', currentBlackOp)[0];
+      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hRank: v${ns.formatNumber(blackOpRank, 3)} -` +
+        ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRank)}`);
+    }
+    else lines.push(` s${fillWhitespaces((divider.length / 2) - 5)}vFINISHED`);
 
     ns.print(lines
       .join('\n')
@@ -196,21 +211,21 @@ export async function main(ns) {
   function getCompetence(city) {
     let competence = 0;
     // + actionWeight * Math.pow(skillMult * playerLvl, actionDecay) // for each stat
-    competence += 0.083 * Math.pow(1 * player().skills.hacking, 0.37);
-    competence += 0.1125 * Math.pow(1 * player().skills.strength, 0.876);
-    competence += 0.1125 * Math.pow(1 * player().skills.defense, 0.876);
-    competence += 0.254 * Math.pow(1 * player().skills.dexterity, 0.876);
-    competence += 0.23 * Math.pow(1 * player().skills.agility, 0.876);
-    competence += 0.104 * Math.pow(1 * player().skills.charisma, 0.592);
-    competence += 0.097 * Math.pow(1 * player().skills.intelligence, 0.908);
+    competence += 0.083 * Math.pow(1 * ns.getPlayer().skills.hacking, 0.37);
+    competence += 0.1125 * Math.pow(1 * ns.getPlayer().skills.strength, 0.876);
+    competence += 0.1125 * Math.pow(1 * ns.getPlayer().skills.defense, 0.876);
+    competence += 0.254 * Math.pow(1 * ns.getPlayer().skills.dexterity, 0.876);
+    competence += 0.23 * Math.pow(1 * ns.getPlayer().skills.agility, 0.876);
+    competence += 0.104 * Math.pow(1 * ns.getPlayer().skills.charisma, 0.592);
+    competence += 0.097 * Math.pow(1 * ns.getPlayer().skills.intelligence, 0.908);
 
-    competence *= 1 + (0.75 * Math.pow(player().skills.intelligence, 0.8)) / 600;
+    competence *= 1 + (0.75 * Math.pow(ns.getPlayer().skills.intelligence, 0.8)) / 600;
     competence *= Math.min(1, ns.bladeburner.getStamina()[0] / (0.5 * ns.bladeburner.getStamina()[1]));
     competence *= Math.pow(populationOf(city) / 1e9, 0.7);
     competence *= (ns.bladeburner.getSkillLevel(`Blade's Intuition`) * 0.03 + 1);
     competence *= ((stealthSuccessMult() + retirementSuccessMult() * 2) / 3
       + (stealthSuccessMult() * 3 + retirementSuccessMult() + stealthSuccessMult() * retirementSuccessMult() * 2) * opSuccessMult() / 6) / 2;
-    competence *= player().mults.bladeburner_success_chance;
+    competence *= ns.getPlayer().mults.bladeburner_success_chance;
 
     return competence;
   }
@@ -244,15 +259,8 @@ export async function main(ns) {
   */
   async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
     stamina && await checkStamina();
-    if (currentBlackOp === '') { // Daedalus is done
-      ns.alert(`|  Operation Daedalus is accomplished  |\nDestroy this BitNode when you're ready`);
-      ns.bladeburner.stopBladeburnerAction();
-      ns.closeTail();
-      ns.exit();
-    }
 
     for (let i = 0; i < count; i++) {
-      // if (action === 'Field Analysis' || type === 'contract' || type === 'op' || type === 'blackop') {
       rankGain = [Infinity, 0];
       for (let j = 0; j < 50; j++) {
         const repGain = ns.bladeburner.getActionRepGain(type, action);
@@ -260,13 +268,18 @@ export async function main(ns) {
         rankGain[0] = Math.min(rank, rankGain[0]);
         rankGain[1] = Math.max(rank, rankGain[1]);
       }
-      // }
       if (rankGain[0] === Infinity) rankGain[0] = 0;
 
       if (ns.bladeburner.startAction(type, action)) {
-        ns.setTitle(action + (count > 1 ? ' ' + (i + 1) + '/' + count : ''));
+        ns.setTitle(
+          `R:${ns.formatNumber(ns.bladeburner.getRank(), 0)}, ` +
+          `D:${ns.formatPercent(successChance('blackop', 'Operation Daedalus')[0], 0)} | ` +
+          `${count > 1 ? (i + 1) + '/' + count + ' ' : ''}${type !== 'blackop' ? action : 'Op.' + action.substring(10)}`
+        );
+
         const totalTime = ns.bladeburner.getActionTime(type, action);
         let current = currentTime();
+
         while (current < totalTime) {
           logAction(ns.bladeburner.getCurrentAction().type, ns.bladeburner.getCurrentAction().name, i + 1, count);
           await ns.sleep(1e3);
@@ -336,15 +349,15 @@ export async function main(ns) {
   /** Perform the current blackop if ```chance === 100%``` and ```rank``` is sufficient. */
   async function checkBlackOps() {
     currentBlackOp = getCurrentBlackOp();
+    if (continueBlade) return;
     while (await ns.sleep(10)) {
       if (currentBlackOp === '') { // Daedalus is done
-        ns.alert(`=====  Operation Daedalus is accomplished  =====\n(!) Destroy this BitNode when you're ready (!)`);
-        ns.bladeburner.stopBladeburnerAction();
-        ns.closeTail();
+        ns.alert(`!  Operation Daedalus is accomplished  !\nDestroy this BitNode when you're ready`);
         // Log the time of the Daedalus completion to terminal
         // Only if Daedalus is actually performed, not just finished
         ns.tprintf(`\n(!) Finished Daedalus at: ${(new Date()).toLocaleString()}`, 0);
-        ns.exit();
+        continueBlade = true;
+        break;
       }
 
       if (ns.bladeburner.getRank() < ns.bladeburner.getBlackOpRank(currentBlackOp)) return;
@@ -364,13 +377,16 @@ export async function main(ns) {
 
   function getCurrentBlackOp() {
     let currentBlackOp = '';
-    ns.bladeburner.getBlackOpNames().forEach(bo => {
-      if (currentBlackOp !== '') return;
-      if (actionCount('blackop', bo) > 0) {
-        currentBlackOp = bo;
-        return;
-      }
-    });
+    if (continueBlade) currentBlackOp = 'Operation Daedalus';
+    else {
+      ns.bladeburner.getBlackOpNames().forEach(bo => {
+        if (currentBlackOp !== '') return;
+        if (actionCount('blackop', bo) > 0) {
+          currentBlackOp = bo;
+          return;
+        }
+      });
+    }
     return currentBlackOp;
   }
 
