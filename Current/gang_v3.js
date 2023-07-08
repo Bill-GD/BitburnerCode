@@ -1,6 +1,7 @@
-/** Version 3.0.1
- * Rebalance the territory log conditions, warfare requirements
- * Some code cleanup
+/** Version 3.0.2
+ * No longer limit allowance for equipment
+ * -> better investment -> faster income
+ * Title shows current territory & income
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -42,11 +43,6 @@ export async function main(ns) {
       ns.exit();
     }
   }
-
-  /** The amount of money allowed to spend on gang equipment.
-   ** Higher -> profit faster (& slower in general if use stock as well)
-   */
-  const getMoney = () => ns.getServerMoneyAvailable('home') * 0.25;
 
   let headlines = [];
   const tasks = {
@@ -93,10 +89,10 @@ export async function main(ns) {
     // check equipment
     let count = 0;
     upgrades.forEach(up => {
-      const cost = ns.gang.getEquipmentCost(up);
+      const cost = ns.gang.getEquipmentCost(up),
+        allowance = ns.getServerMoneyAvailable('home') / allMembers.length;
       allMembers.forEach((member, index) => {
-        if (cost < getMoney() / allMembers.length &&
-          !membersData[index].data.upgrades.includes(up) &&
+        if (cost <= allowance && !membersData[index].data.upgrades.includes(up) &&
           ns.gang.purchaseEquipment(member, up))
           count++;
       });
@@ -106,10 +102,10 @@ export async function main(ns) {
     // check aug
     count = 0;
     augs.forEach(aug => {
-      const cost = ns.gang.getEquipmentCost(aug);
+      const cost = ns.gang.getEquipmentCost(aug),
+        allowance = ns.getServerMoneyAvailable('home') / allMembers.length;
       allMembers.forEach((member, index) => {
-        if (cost < getMoney() / allMembers.length &&
-          !membersData[index].data.augmentations.includes(aug) &&
+        if (cost <= allowance && !membersData[index].data.augmentations.includes(aug) &&
           ns.gang.purchaseEquipment(member, aug))
           count++;
       });
@@ -187,6 +183,8 @@ export async function main(ns) {
     ns.clearLog();
     const width = ' ------------------------------------------';
     const lines = [];
+
+    ns.setTitle(`T:${ns.formatPercent(gangData.territory, 3)}, M:$${ns.formatNumber(gangInfo.moneyGainRate * 10, 3)}/cycle`);
 
     headlines = [...new Set(headlines)];
 
