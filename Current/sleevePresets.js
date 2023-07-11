@@ -1,5 +1,5 @@
-/** Version 1.1
- * Added more presets beside Infiltration
+/** Version 1.1.1
+ * Fixed sleeves unable to actually complete task before assigning again
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -72,10 +72,12 @@ export async function main(ns) {
 
   if (type !== 'Recovery') for (let i = 0; i < 8; i++) ns.sleeve.setToIdle(i);
 
-  let assigned = Array(8).fill().map((e, i) => ns.sleeve.getSleeve(i)).filter((s, i) => ns.sleeve.getTask(i)).length > 0;
   while (1) {
     let allSleeves = [];
-    for (let i = 0; i < 8; i++) allSleeves.push([i, ns.sleeve.getSleeve(i)]);
+    for (let i = 0; i < 8; i++) {
+      const task = ns.sleeve.getTask(i);
+      allSleeves.push([i, ns.sleeve.getSleeve(i), task ? true : false]);
+    }
     allSleeves = allSleeves.sort((a, b) => b[1].storedCycles - a[1].storedCycles);
 
     for (const sleeve of allSleeves) {
@@ -83,25 +85,25 @@ export async function main(ns) {
       if (sleeve[1].storedCycles < cycleLimit) {
         if (task && task.cyclesNeeded - task.cyclesWorked > sleeve[1].storedCycles) {
           ns.sleeve.setToIdle(sleeve[0]);
-          assigned = false;
+          sleeve[2] = false;
         }
         continue;
       }
 
-      if (assigned && action.includes('Infil')) continue;
-
-      switch (type) {
-        case 'Recovery':
-          ns.sleeve.setToShockRecovery(sleeve[0]);
-          break;
-        case 'Crime':
-          ns.sleeve.setToCommitCrime(sleeve[0], action);
-          break;
-        case 'Blade':
-          ns.sleeve.setToBladeburnerAction(sleeve[0], action);
-          break;
+      if (!sleeve[2]) {
+        switch (type) {
+          case 'Recovery':
+            ns.sleeve.setToShockRecovery(sleeve[0]);
+            break;
+          case 'Crime':
+            ns.sleeve.setToCommitCrime(sleeve[0], action);
+            break;
+          case 'Blade':
+            ns.sleeve.setToBladeburnerAction(sleeve[0], action);
+            break;
+        }
+        sleeve[2] = true;
       }
-      assigned = true;
     }
     logTask();
     await ns.sleep(100);
