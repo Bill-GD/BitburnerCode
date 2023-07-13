@@ -1,6 +1,7 @@
-/** Version 2.3.2
- * Fixed bug with Crime time limit
- * Can now choose specific CrimeType when not using preset
+/** Version 2.3.3
+ * Diplomacy -> Analysis
+ * Reduced RAM
+ * Keep sleeve tasks the same if no preset is chosen
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -24,7 +25,6 @@ export async function main(ns) {
   // shorten function
   const playerMoney = () => ns.getServerMoneyAvailable('home');
 
-  const numSleeve = () => sl.getNumSleeves();
   const getSleeve = id => sl.getSleeve(id);
 
   const getAugs = id => sl.getSleevePurchasableAugs(id);
@@ -62,43 +62,43 @@ export async function main(ns) {
         'Combat',
         'Karma',
         'Infiltrate',
-        'Diplomacy',
+        'Analysis',
         'None'
       ]
     }
   );
-  let sleeves = [];
+  let sleeves = Array(8).fill().map(() => [null, null]);
   let chanceLimit = true;
 
   switch (preset) {
     case 'Idle':
-      sleeves = Array(numSleeve()).fill().map(() => ['Idle', null]);
+      sleeves = Array(8).fill().map(() => ['Idle', null]);
       break;
     case 'Combat':
     case 'Karma':
       if (await ns.prompt('Limit Crime time to 30 sec?'))
         crimes = crimes.filter(a => crimeStats(a).time <= 30e3);
       chanceLimit = await ns.prompt('Only select Crimes with chance of 80% or more?');
-      sleeves = Array(numSleeve()).fill().map(() => ['Crime', preset.toLowerCase()]);
+      sleeves = Array(8).fill().map(() => ['Crime', preset.toLowerCase()]);
       break;
     case 'Infiltrate':
-      sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Infiltrate synthoids']);
+      sleeves = Array(8).fill().map(() => ['Blade', 'Infiltrate synthoids']);
       break;
-    case 'Diplomacy':
-      sleeves = Array(numSleeve()).fill().map(() => ['Blade', 'Diplomacy']);
+    case 'Analysis':
+      sleeves = Array(8).fill().map(() => ['Blade', 'Field Analysis']);
       break;
     case 'Recover':
-      sleeves = Array(numSleeve()).fill().map(() => ['Recovery', null]);
+      sleeves = Array(8).fill().map(() => ['Recovery', null]);
       break;
   }
 
   if (preset === 'None') {
-    sleeves = Array(numSleeve()).fill().map(() => [null, null]);
+    sleeves = Array(8).fill().map(() => [null, null]);
 
     let notification = '';
     selectID: while (!sleeves.every(([t, a]) => t !== null)) {
       let sleeveIDs = [];
-      for (let i = 0; i < numSleeve(); i++)
+      for (let i = 0; i < 8; i++)
         sleeveIDs.push(i);
       let selectedSleeve = await ns.prompt(
         `${notification}` +
@@ -149,13 +149,11 @@ export async function main(ns) {
           );
           if (chosenAction !== '') sleeves[selectedSleeve][1] = chosenAction;
         }
-        await ns.sleep(10);
       }
-      await ns.sleep(10);
     }
   }
 
-  sleeves.forEach(([type, action], id) => {
+  preset && sleeves.forEach(([type, action], id) => {
     if (!type) return;
 
     switch (type) {
@@ -187,7 +185,7 @@ export async function main(ns) {
     sleeves.forEach(([t, a], id) => {
       const augs = getAugs(id);
       augs.sort((a, b) => a.cost - b.cost)
-        .filter(a => a.cost < playerMoney() / (augs.length * numSleeve()))
+        .filter(a => a.cost * 8 < playerMoney())
         .forEach(aug => {
           if (getSleeve(id).shock <= 0) installAug(id, aug.name);
         });
@@ -201,7 +199,7 @@ export async function main(ns) {
     let maxWidth = 0;
     let lineCount = 0;
     ns.clearLog();
-    for (let id = 0; id < numSleeve(); id++) {
+    for (let id = 0; id < 8; id++) {
       let task = sl.getTask(id);
       if (!task) task = `Idle`;
       else

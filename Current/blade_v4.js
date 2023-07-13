@@ -1,11 +1,16 @@
-/** Version 4.11
- * Now check Black Op BEFORE starting a task
- * Reduced the amount of information shown in log
- * Hardcoded constants to reduce RAM cost
- * No longer uses the incorrect success chance to choose city
- * Accuracy-increasing actions now include Investigation & Undercover Operation
- * Accuracy check is a bit more lenient (now allows 5% difference)
- * Prevent cancelling BlackOp if restarting script
+/** Version 4.12
+ * Changed number formatting
+ * Skill upgrading is done before starting an action
+ * Switches to Post-Blade right after Daedalus is completed
+ * Fixed chances for Operations used in accuracy check
+ * 
+ * Post-Blade phase (after Daedalus)
+ * - For Int grinding
+ * - Assassination only
+ * - Incite Violence if Ass count is 0, until count equal successes needed to level up
+ * - No longer upgrade skills -> use 'bladeSkills.js' instead -> speed
+ * - No longer check Stamina & Black Op
+ * - Shows info about Assassination
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -31,16 +36,15 @@ export async function main(ns) {
   // shortened function
   const successChance = (type = '', name = '') => ns.bladeburner.getActionEstimatedSuccessChance(type, name);
   const populationOf = city => ns.bladeburner.getCityEstimatedPopulation(city);
-  const currentTime = () => ns.bladeburner.getActionCurrentTime();
   const actionCount = (type = '', name = '') => ns.bladeburner.getActionCountRemaining(type, name);
   const requiredSP = skill => ns.bladeburner.getSkillUpgradeCost(skill);
 
-  let continueBlade = false;
+  let postBlade = false;
   let currentBlackOp = getCurrentBlackOp();
 
   if (currentBlackOp === '') {
-    continueBlade = await ns.prompt('Operation Daedalus is completed\n' + 'Continue anyway?');
-    if (!continueBlade) {
+    postBlade = await ns.prompt('Operation Daedalus is completed\n' + 'Continue anyway?');
+    if (!postBlade) {
       ns.bladeburner.stopBladeburnerAction();
       ns.closeTail();
       ns.exit();
@@ -61,29 +65,47 @@ export async function main(ns) {
   while (1) {
     // general
     checkCity();
-    await checkAccuracy('contract', 'Tracking');
-    if (successChance('contract', 'Tracking')[0] < chanceLimits.contract) {
-      await checkChaos();
-      await performAction('general', 'Training');
-      await performAction('general', 'Field Analysis');
-    }
+    if (postBlade) {
+      await checkAccuracy('contract', 'Tracking');
+      if (successChance('contract', 'Tracking')[0] < chanceLimits.contract) {
+        await checkChaos();
+        await performAction('gen', 'Training');
+        await performAction('gen', 'Field Analysis');
+      }
 
-    // contracts
-    await checkAccuracy('contract', 'Tracking');
-    if (successChance('contract', 'Tracking')[0] >= chanceLimits.contract && currentOp === '') {
-      for (const con of contracts) {
-        await checkAccuracy('contract', con);
-        if (successChance('contract', con)[0] < chanceLimits.contract || !checkWorkCount('contract', con)) continue;
-        await performAction('contract', con, Math.min(actionCount('contract', con), 10));
-        await ns.sleep(1);
+      // contracts
+      await checkAccuracy('contract', 'Tracking');
+      if (successChance('contract', 'Tracking')[0] >= chanceLimits.contract && currentOp === '') {
+        for (const con of contracts) {
+          await checkAccuracy('contract', con);
+          if (successChance('contract', con)[0] < chanceLimits.contract || !checkWorkCount('contract', con)) continue;
+          await performAction('contract', con, Math.min(actionCount('contract', con), 10));
+        }
       }
     }
 
     currentOp = getBestOp();
     if (currentOp !== '') {
       await checkAccuracy('op', currentOp);
-      await performAction('op', currentOp, Math.min(actionCount('op', currentOp), Math.trunc(Math.random() * 7 + 13))); // 13-20
+      const count = postBlade
+        ? actionCount('op', currentOp)
+        : Math.min(actionCount('op', currentOp), Math.trunc(Math.random() * 7 + 13)); // 13-20
+      await performAction('op', currentOp, count);
     }
+
+    await ns.sleep(1);
+    if (postBlade) {
+      // await checkChaos();
+      if (actionCount('op', 'Assassination') <= 0) {
+        const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
+        const successNeeded = Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - ns.bladeburner.getActionSuccesses('op', 'Assassination');
+        while (actionCount('op', 'Assassination') < successNeeded) {
+          await ns.sleep(10);
+          await performAction('gen', 'Incite Violence', 1, false, false);
+        }
+      }
+    }
+    await ns.sleep(1);
   }
 
   function logAction(type, name, count = 1, maxCount = 1) {
@@ -103,22 +125,22 @@ export async function main(ns) {
     const taskCount = actionCount(type, name);
     const totalTime = ns.bladeburner.getActionTime(type, name);
 
-    lines.push(' h----------------==={ sCURRENT h}===------------------');
+    lines.push(' h-----------------==={ sCURRENT h}===-----------------');
     const task = `${name}` + (maxCount > 1 ? ` (${count} / ${maxCount})` : '');
     lines.push(` s${fillWhitespaces((divider.length / 2) - (task.length / 2) - 1)}v${task}`);
     type !== 'General' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(successChance(type, name)[0], 2)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${formatTime(currentTime())} / ${formatTime(totalTime)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(currentTime(), totalTime, 20)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${formatTime(ns.bladeburner.getActionCurrentTime())} / ${formatTime(totalTime)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(ns.bladeburner.getActionCurrentTime(), totalTime, 20)}`);
     (taskCount !== Infinity && taskCount !== 1) && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${taskCount}`);
 
     lines.push(' h-----------------==={ sSKILLS h}===------------------');
     const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
     const spGainAvg = Math.trunc(rankGainAvg / 3) + ((currentRank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
 
-    lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(currentRank, 3, 1e6)}` +
-      `${rankGainAvg > 0 && rankGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(rankGainAvg, 1, 1e6)})` : ''}`);
-    lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(currentSP, 3, 1e6)}` +
-      `${spGainAvg > 0 && spGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(Math.trunc(spGainAvg), 3, 1e6)})` : ''}`);
+    lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(currentRank, currentRank >= 1e6 ? 3 : 0, 1e6)}` +
+      `${rankGainAvg > 0 && rankGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(rankGainAvg, rankGainAvg >= 1e6 ? 1 : 0, 1e6)})` : ''}`);
+    lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(currentSP, currentSP > 1e6 ? 3 : 0, 1e6)}` +
+      `${spGainAvg > 0 && spGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(Math.trunc(spGainAvg), 0, 1e6)})` : ''}`);
 
     skills.forEach(skill => {
       if (ns.bladeburner.getSkillLevel(skill) > 0) {
@@ -131,15 +153,23 @@ export async function main(ns) {
       }
     });
 
-    lines.push(' h----------------==={ sBLACK OP h}===-----------------');
-    if (!continueBlade) {
+    if (!postBlade) {
+      lines.push(' h----------------==={ sBLACK OP h}===-----------------');
       const chance = successChance('blackop', currentBlackOp)[0];
       lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp.substring(10)}`);
       lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
       lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hRank: v${ns.formatNumber(blackOpRanks[currentBlackOp], 3)} -` +
         ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRanks[currentBlackOp])}`);
     }
-    else lines.push(` s${fillWhitespaces((divider.length / 2) - 5)}vFINISHED`);
+    else {
+      lines.push(' h--------------==={ sASSASSINATION h}===--------------');
+      const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
+      const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination');
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hLevel: v${maxLevel}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 - 3)} hSuccesses: v${ns.formatNumber(successes, 3, 1e6)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hNeeded: v${ns.formatNumber(Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - successes, 3, 1e6)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${actionCount('op', 'Assassination')}`);
+    }
 
     ns.print(lines
       .join('\n')
@@ -171,17 +201,17 @@ export async function main(ns) {
   /** If success chance difference is more than ```5%``` starts increasing accuracy. */
   async function checkAccuracy(type, name) {
     while (successChance(type, name)[1] - successChance(type, name)[0] > 0.05) {
-      if (successChance('op', 'Undercover Operation') > chanceLimits.operation &&
+      if (successChance('op', 'Undercover Operation')[0] >= chanceLimits.operation &&
         actionCount('op', 'Undercover Operation') > 0 &&
         ns.bladeburner.getActionTime('op', 'Undercover Operation') <= 30e3)
         await performAction('op', 'Undercover Operation', 1, false, false);
 
-      else if (successChance('op', 'Investigation') > chanceLimits.operation &&
+      else if (successChance('op', 'Investigation')[0] >= chanceLimits.operation &&
         actionCount('op', 'Investigation') > 0 &&
         ns.bladeburner.getActionTime('op', 'Investigation') <= 30e3)
         await performAction('op', 'Investigation', 1, false, false);
 
-      else await performAction('general', 'Field Analysis', 1, false, false);
+      else await performAction('gen', 'Field Analysis', 1, false, false);
     }
   }
 
@@ -194,37 +224,46 @@ export async function main(ns) {
    * @param {boolean} blackOp Whether to check for Black Op. Set to ```false``` to disable Black Op (why?). Defaults to ```true```. */
   async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
     for (let i = 0; i < count; i++) {
+      if (actionCount(type, action) <= 0) return;
+      ns.bladeburner.stopBladeburnerAction();
+
       rankGain = [Infinity, 0];
-      for (let j = 0; j < 50; j++) {
+      for (let j = 0; j < 30; j++) {
         const repGain = ns.bladeburner.getActionRepGain(type, action);
         const rank = repGain + (Math.random() * (repGain * 0.2) - repGain * 0.1);
         rankGain[0] = Math.min(rank, rankGain[0]);
         rankGain[1] = Math.max(rank, rankGain[1]);
       }
       if (rankGain[0] === Infinity) rankGain[0] = 0;
-      stamina && await checkStamina();
-      blackOp && await checkBlackOps();
+      if (!postBlade) {
+        await upgradeSkills();
+        stamina && await checkStamina();
+        blackOp && await checkBlackOps();
+      }
 
       if (ns.bladeburner.startAction(type, action)) {
+        const rank = ns.bladeburner.getRank();
         ns.setTitle(
-          `R:${ns.formatNumber(ns.bladeburner.getRank(), 2, 1e6)}, ` +
+          `R:${ns.formatNumber(rank, rank >= 1e6 ? 2 : 0, 1e6)} | ` +
           `D:${ns.formatPercent(successChance('blackop', 'Operation Daedalus')[0], 0)} | ` +
           `${count > 1 ? (i + 1) + '/' + count + ' ' : ''}${type !== 'blackop' ? action : 'Op. ' + action.substring(10)}`
         );
 
         const totalTime = ns.bladeburner.getActionTime(type, action);
-        let current = currentTime();
+        let current = ns.bladeburner.getActionCurrentTime();
 
-        while (current < totalTime) {
-          logAction(ns.bladeburner.getCurrentAction().type, ns.bladeburner.getCurrentAction().name, i + 1, count);
+        while (current <= totalTime) {
+          const bonus = ns.bladeburner.getBonusTime();
           await ns.sleep(1e3);
-          current = currentTime();
-          if (ns.bladeburner.getBonusTime() <= 1e3 && current === 0) break;
-          if (ns.bladeburner.getBonusTime() > 1e3 && current < 5e3) break;
+          logAction(ns.bladeburner.getCurrentAction().type, ns.bladeburner.getCurrentAction().name, i + 1, count);
+          current = ns.bladeburner.getActionCurrentTime();
+          if (ns.bladeburner.getCurrentAction().type === 'Idle') break;
+          if (bonus <= 1e3 && current === 0) break;
+          if (bonus > 1e3 && current < 5e3) break;
         }
-        await upgradeSkills();
       }
       else i--;
+      await ns.sleep(10);
     }
   }
 
@@ -232,18 +271,26 @@ export async function main(ns) {
   async function checkStamina() {
     if (ns.bladeburner.getStamina()[0] < 0.5 * ns.bladeburner.getStamina()[1])
       while (ns.bladeburner.getStamina()[0] < ns.bladeburner.getStamina()[1])
-        await performAction('general', 'Hyperbolic Regeneration Chamber', 1, false, false);
+        await performAction('gen', 'Hyperbolic Regeneration Chamber', 1, false, false);
   }
 
   /** Continuously upgrade skill while SP is sufficient. */
   async function upgradeSkills() {
-    skills.sort((a, b) => requiredSP(a) - requiredSP(b));
+    const allSkills = skills.slice();
+    allSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
+    const rank = ns.bladeburner.getRank();
+    ns.setTitle(
+      `R:${ns.formatNumber(rank, rank >= 1e6 ? 2 : 0, 1e6)} | ` +
+      `D:${ns.formatPercent(successChance('blackop', 'Operation Daedalus')[0], 0)} | ` +
+      `Upgrading Skills`
+    );
 
-    while (ns.bladeburner.getSkillPoints() >= requiredSP(skills[0])) {
-      if (skills[0] === 'Overclock' && ns.bladeburner.getSkillLevel(skills[0]) >= 90)
-        skills.splice(0, 1);
-      ns.bladeburner.upgradeSkill(skills[0]);
-      skills.sort((a, b) => requiredSP(a) - requiredSP(b));
+    while (ns.bladeburner.getSkillPoints() >= requiredSP(allSkills[0])) {
+      if (allSkills[0] === 'Overclock' && ns.bladeburner.getSkillLevel(allSkills[0]) >= 90)
+        allSkills.splice(0, 1);
+      ns.bladeburner.upgradeSkill(allSkills[0]);
+      allSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
+      await ns.sleep(0);
     }
   }
 
@@ -268,14 +315,7 @@ export async function main(ns) {
   async function checkBlackOps() {
     currentBlackOp = getCurrentBlackOp();
     while (1) {
-      if (continueBlade) return;
-      if (currentBlackOp === '') { // Daedalus is done
-        ns.alert(`!  Operation Daedalus is accomplished  !\nDestroy this BitNode when you're ready`);
-        // Log the time of the Daedalus completion to terminal
-        // Only if Daedalus is actually performed, not just finished
-        ns.tprintf(`\n(!) Finished Daedalus at: ${(new Date()).toLocaleString()}`, 0);
-        break;
-      }
+      if (postBlade) return;
 
       if (ns.bladeburner.getRank() < blackOpRanks[currentBlackOp]) return;
       await checkAccuracy('blackop', currentBlackOp);
@@ -287,24 +327,29 @@ export async function main(ns) {
       const nextBlackOp = getCurrentBlackOp();
       if (nextBlackOp !== currentBlackOp) {
         ns.toast(`Successfully completed ${currentBlackOp}`, 'success', 5e3);
-        if (currentBlackOp.includes('Daedalus')) continueBlade = true;
+        if (currentBlackOp.includes('Daedalus')) {
+          postBlade = true;
+          ns.alert(`!  Operation Daedalus is accomplished  !\nDestroy this BitNode when you're ready`);
+          // Log the time of the Daedalus completion to terminal
+          // Only if Daedalus is actually performed, not just finished
+          ns.tprintf(`\n(!) Finished Daedalus at: ${(new Date()).toLocaleString()}`, 0);
+        }
         else currentBlackOp = nextBlackOp;
       }
     }
   }
 
   function getCurrentBlackOp() {
+    if (postBlade) return 'Operation Daedalus';
     let currentBlackOp = '';
-    if (continueBlade) currentBlackOp = 'Operation Daedalus';
-    else {
-      blackOps.forEach(bo => {
-        if (currentBlackOp === '' && actionCount('blackop', bo) > 0) currentBlackOp = bo;
-      });
-    }
+    blackOps.forEach(bo => {
+      if (currentBlackOp === '' && actionCount('blackop', bo) > 0) currentBlackOp = bo;
+    });
     return currentBlackOp;
   }
 
   function getBestOp() {
+    if (postBlade) return 'Assassination';
     let bestOp = '';
     operations.forEach(op => {
       if (bestOp !== '') return;

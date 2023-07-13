@@ -1,5 +1,6 @@
-/** Version 1.1.1
- * Fixed sleeves unable to actually complete task before assigning again
+/** Version 1.1.2
+ * Added Diplomacy
+ * Only 1 sleeve can Infiltrate at a time
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -20,7 +21,7 @@ export async function main(ns) {
           }
         });
         return (score2 / stats2.time) - (score1 / stats1.time);
-      } catch (error) { }
+      } catch { }
     });
 
   let preset = await ns.prompt(
@@ -32,6 +33,7 @@ export async function main(ns) {
         'Combat',
         'Karma',
         'Infiltrate',
+        'Diplomacy',
         'Analysis',
       ]
     }
@@ -49,6 +51,9 @@ export async function main(ns) {
       break;
     case 'Infiltrate':
       [type, action] = ['Blade', 'Infiltrate synthoids'];
+      break;
+    case 'Diplomacy':
+      [type, action] = ['Blade', 'Diplomacy'];
       break;
     case 'Analysis':
       [type, action] = ['Blade', 'Field Analysis'];
@@ -72,23 +77,30 @@ export async function main(ns) {
 
   if (type !== 'Recovery') for (let i = 0; i < 8; i++) ns.sleeve.setToIdle(i);
 
+  let assigned = action?.includes('Infil') ? Array(8).fill().map((e, i) => i).filter(id => ns.sleeve.getTask(id)).length > 0 : false;
   while (1) {
     let allSleeves = [];
     for (let i = 0; i < 8; i++) {
       const task = ns.sleeve.getTask(i);
-      allSleeves.push([i, ns.sleeve.getSleeve(i), task ? true : false]);
+      allSleeves.push([i, ns.sleeve.getSleeve(i), task ? true : false, action]);
     }
     allSleeves = allSleeves.sort((a, b) => b[1].storedCycles - a[1].storedCycles);
 
     for (const sleeve of allSleeves) {
+      if (type === 'Recovery' && ns.sleeve.getSleeve(sleeve[0]).shock <= 0) continue;
       const task = ns.sleeve.getTask(sleeve[0]);
-      if (sleeve[1].storedCycles < cycleLimit) {
+      if (task && task.type.includes('BLADE') && task.actionType === 'Contracts') continue;
+      if (sleeve[1].storedCycles < cycleLimit * 10) {
         if (task && task.cyclesNeeded - task.cyclesWorked > sleeve[1].storedCycles) {
           ns.sleeve.setToIdle(sleeve[0]);
           sleeve[2] = false;
+          sleeve[3] = 'Idle';
+          if (action.includes('Infil')) assigned = false;
         }
         continue;
       }
+
+      if (assigned && action.includes('Infil')) continue;
 
       if (!sleeve[2]) {
         switch (type) {
@@ -100,6 +112,7 @@ export async function main(ns) {
             break;
           case 'Blade':
             ns.sleeve.setToBladeburnerAction(sleeve[0], action);
+            if (action.includes('Infil')) assigned = true;
             break;
         }
         sleeve[2] = true;
@@ -120,7 +133,7 @@ export async function main(ns) {
             task = task.actionName;
             break;
           case 'recovery':
-            task = 'Recovery';
+            task = `Recovery (${ns.formatNumber(ns.sleeve.getSleeve(id).shock, 3)})`;
             break;
           case 'crime':
             task = task.crimeType;
@@ -131,6 +144,6 @@ export async function main(ns) {
         }
       ns.print(` ${id}: ${task} - ${ns.formatNumber(ns.sleeve.getSleeve(id).storedCycles, 3, 1e6)}`);
     }
-    ns.resizeTail(275, 8 * 25 + 35);
+    ns.resizeTail(300, 8 * 25 + 35);
   }
 }
