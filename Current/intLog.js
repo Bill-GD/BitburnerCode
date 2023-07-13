@@ -3,7 +3,7 @@ export async function main(ns) {
   const fileName = 'int-log.txt';
   while (1) {
     const file = ns.read(fileName);
-    let [time, int] = ['', '', ''],
+    let [time, int] = ['', ''],
       [level, xp, rate] = ['', '', ''];
 
     let [currentLevel, currentXp] = [ns.getPlayer().skills.intelligence, ns.getPlayer().exp.intelligence];
@@ -19,7 +19,7 @@ export async function main(ns) {
       const timeDiff = (Date.now() - oldTime) / 3600e3; // max precision: [milisecond] - [second] -> hour
       const [levelDiff, xpDiff] = [currentLevel - parseInt(level), currentXp - parseFloat(xp)];
       const [lvRate, xpRate] = [levelDiff / timeDiff, xpDiff / timeDiff]; // per hour
-      rate = `, ${lvRate}lv/h, ${ns.formatNumber(xpRate, 3)}xp/h`;
+      rate = `, ${ns.formatNumber(lvRate, 3)}lv/h, ${ns.formatNumber(xpRate, 3)}xp/h`;
     }
 
     [currentLevel, currentXp] = [ns.getPlayer().skills.intelligence, ns.getPlayer().exp.intelligence];
