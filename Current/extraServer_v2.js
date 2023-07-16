@@ -1,8 +1,5 @@
-/** Version 2.0.3
- * Removed support for Hacknet servers
- * No longer kill all script on the destination servers
- * Improved prompt/UI sequence
- * Consistent RAM formatting
+/** Version 2.0.4
+ * No longer copy any files to any of the purchased servers (script is now for server management only)
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -162,17 +159,4 @@ export async function main(ns) {
   let count = boughtServers.length - before;
 
   ns.toast(`Bought ${count} server${count > 1 ? 's' : ''}`, 'info', 10e3);
-
-  const files = ['hackScript.js', 'weaken.js', 'grow.js', 'hack.js'];
-  for (const server of boughtServers) await handleServer(server);
-  // for (let i = 0; i < eval('ns.hacknet').numNodes(); i++) await handleServer('hacknet-server-' + i);
-
-  async function handleServer(server) {
-    if (!ns.isRunning('hackScript.js', server, 'hackFromPurchased')) {
-      ns.scp(files, server, 'home');
-      ns.toast(`Copied to ${server}`, 'success', 10e3);
-      await ns.sleep(Math.round(Math.random() * 1e3));
-      ns.exec('hackScript.js', server, 1, 'hackFromPurchased');
-    }
-  }
 }
