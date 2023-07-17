@@ -1,22 +1,14 @@
-/** Version 4.12
- * Changed number formatting
- * Skill upgrading is done before starting an action
- * Switches to Post-Blade right after Daedalus is completed
- * Fixed chances for Operations used in accuracy check
- * 
- * Post-Blade phase (after Daedalus)
- * - For Int grinding
- * - Assassination only
- * - Incite Violence if Ass count is 0, until count equal successes needed to level up
- * - No longer upgrade skills -> use 'bladeSkills.js' instead -> speed
- * - No longer check Stamina & Black Op
- * - Shows info about Assassination
+/** Version 4.12.1
+ * Merged with 'bladeSkill.js' and uses ns.asleep() instead of ns.sleep()
+ * Now limits skill levels to upgrade to avoid cost being higher than available points
  */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL');
   ns.clearLog();
   ns.tail();
+
+  const nodeSkillCost = currentBN !== 12 ? bnSkillCost[currentBN] : 1.02 ** parseInt(ns.read('BN_Level.txt'));
 
   const colors = {
     section: getColor(ns.ui.getTheme().money),
@@ -37,7 +29,6 @@ export async function main(ns) {
   const successChance = (type = '', name = '') => ns.bladeburner.getActionEstimatedSuccessChance(type, name);
   const populationOf = city => ns.bladeburner.getCityEstimatedPopulation(city);
   const actionCount = (type = '', name = '') => ns.bladeburner.getActionCountRemaining(type, name);
-  const requiredSP = skill => ns.bladeburner.getSkillUpgradeCost(skill);
 
   let postBlade = false;
   let currentBlackOp = getCurrentBlackOp();
@@ -113,11 +104,12 @@ export async function main(ns) {
     ns.clearLog();
 
     const lines = [];
+    const skillToPrint = getAllSkills();
 
     let maxSkillWidth = Math.max('Rank'.length, 'Skill Points'.length);
-    skills.forEach(skill => {
-      if (ns.bladeburner.getSkillLevel(skill) > 0)
-        maxSkillWidth = Math.max(maxSkillWidth, skill.length);
+    skillToPrint.forEach(skill => {
+      if (ns.bladeburner.getSkillLevel(skill.name) > 0)
+        maxSkillWidth = Math.max(maxSkillWidth, skill.name.length);
     });
     const currentSP = ns.bladeburner.getSkillPoints();
     const currentRank = ns.bladeburner.getRank();
@@ -140,14 +132,14 @@ export async function main(ns) {
     lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(currentRank, currentRank >= 1e6 ? 3 : 0, 1e6)}` +
       `${rankGainAvg > 0 && rankGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(rankGainAvg, rankGainAvg >= 1e6 ? 1 : 0, 1e6)})` : ''}`);
     lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(currentSP, currentSP > 1e6 ? 3 : 0, 1e6)}` +
-      `${spGainAvg > 0 && spGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(Math.trunc(spGainAvg), 0, 1e6)})` : ''}`);
+      `${spGainAvg > 0 && spGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(Math.trunc(spGainAvg), 3, 1e6)})` : ''}`);
 
-    skills.forEach(skill => {
-      if (ns.bladeburner.getSkillLevel(skill) > 0) {
-        if (skill === 'Overclock' && ns.bladeburner.getSkillLevel(skill) >= 90) return;
-        const sp = requiredSP(skill);
+    skillToPrint.forEach(skill => {
+      if (ns.bladeburner.getSkillLevel(skill.name) > 0) {
+        if (skill.name === 'Overclock' && ns.bladeburner.getSkillLevel('Overclock') >= 90) return;
+        const sp = ns.bladeburner.getSkillUpgradeCost(skill.name);
         lines.push(
-          `${fillWhitespaces(divider.length / 3 - (skill.length) + 2)} h${skill}: v${ns.formatNumber(ns.bladeburner.getSkillLevel(skill), 3, 1e6)} - ` +
+          `${fillWhitespaces(divider.length / 3 - (skill.name.length) + 2)} h${skill.name}: v${ns.formatNumber(ns.bladeburner.getSkillLevel(skill.name), 3, 1e6)} - ` +
           (ns.bladeburner.getSkillPoints() >= sp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + `${ns.formatNumber(sp, 3, 1e6)}`
         );
       }
@@ -162,10 +154,17 @@ export async function main(ns) {
         ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRanks[currentBlackOp])}`);
     }
     else {
+      const city = ns.bladeburner.getCity();
+      lines.push(' h------------------==={ sCITY h}===-------------------');
+      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${city}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(populationOf(city), 3)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(ns.bladeburner.getCityChaos(city), 3)}`);
+
       lines.push(' h--------------==={ sASSASSINATION h}===--------------');
       const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
       const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination');
       lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hLevel: v${maxLevel}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(successChance('op', 'Assassination')[0], 2)}`);
       lines.push(`${fillWhitespaces(divider.length / 4 - 3)} hSuccesses: v${ns.formatNumber(successes, 3, 1e6)}`);
       lines.push(`${fillWhitespaces(divider.length / 4)} hNeeded: v${ns.formatNumber(Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - successes, 3, 1e6)}`);
       lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${actionCount('op', 'Assassination')}`);
@@ -236,7 +235,6 @@ export async function main(ns) {
       }
       if (rankGain[0] === Infinity) rankGain[0] = 0;
       if (!postBlade) {
-        await upgradeSkills();
         stamina && await checkStamina();
         blackOp && await checkBlackOps();
       }
@@ -263,7 +261,8 @@ export async function main(ns) {
         }
       }
       else i--;
-      await ns.sleep(10);
+      await upgradeSkills();
+      await ns.sleep(0);
     }
   }
 
@@ -274,23 +273,21 @@ export async function main(ns) {
         await performAction('gen', 'Hyperbolic Regeneration Chamber', 1, false, false);
   }
 
-  /** Continuously upgrade skill while SP is sufficient. */
+  /** Continuously upgrade skill while SP is sufficient. Speed increases the more points accumulated. */
   async function upgradeSkills() {
-    const allSkills = skills.slice();
-    allSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
-    const rank = ns.bladeburner.getRank();
-    ns.setTitle(
-      `R:${ns.formatNumber(rank, rank >= 1e6 ? 2 : 0, 1e6)} | ` +
-      `D:${ns.formatPercent(successChance('blackop', 'Operation Daedalus')[0], 0)} | ` +
-      `Upgrading Skills`
-    );
+    const allSkills = getAllSkills();
+    allSkills.sort((a, b) => ns.bladeburner.getSkillUpgradeCost(a.name) - ns.bladeburner.getSkillUpgradeCost(b.name));
 
-    while (ns.bladeburner.getSkillPoints() >= requiredSP(allSkills[0])) {
-      if (allSkills[0] === 'Overclock' && ns.bladeburner.getSkillLevel(allSkills[0]) >= 90)
+    let sp = ns.bladeburner.getSkillPoints();
+    let count = calculateLevels(allSkills[0], ns.bladeburner.getSkillLevel(allSkills[0].name), sp);
+    while (sp >= ns.bladeburner.getSkillUpgradeCost(allSkills[0].name, count)) {
+      if (allSkills[0].name === 'Overclock' && ns.bladeburner.getSkillLevel(allSkills[0].name) >= 90)
         allSkills.splice(0, 1);
-      ns.bladeburner.upgradeSkill(allSkills[0]);
-      allSkills.sort((a, b) => requiredSP(a) - requiredSP(b));
-      await ns.sleep(0);
+      ns.bladeburner.upgradeSkill(allSkills[0].name, count);
+      allSkills.sort((a, b) => ns.bladeburner.getSkillUpgradeCost(a.name) - ns.bladeburner.getSkillUpgradeCost(b.name));
+      sp = ns.bladeburner.getSkillPoints();
+      count = calculateLevels(allSkills[0], ns.bladeburner.getSkillLevel(allSkills[0].name), sp);
+      await ns.asleep(0);
     }
   }
 
@@ -359,37 +356,57 @@ export async function main(ns) {
     return bestOp;
   }
 
-  /** Convert ```HEX``` colors to ```ANSI``` colors, default is ```#ffffff```. This color is used for text (foreground).
-   * @param {string} colorHex color in hex format
-   * @returns ```Unicode``` string for the color */
-  function getColor(colorHex = '#ffffff') {
-    if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
-    const r = parseInt(colorHex.substring(1, 3), 16);
-    const g = parseInt(colorHex.substring(3, 5), 16);
-    const b = parseInt(colorHex.substring(5, 7), 16);
-    return `\u001b[38;2;${r};${g};${b}m`;
+  function getAllSkills() {
+    const allSkills = skills.slice();
+    if (postBlade) allSkills.push({ name: 'Hands of Midas', baseCost: 2, costInc: 2.5 });
+    else allSkills.push({ name: 'Overclock', baseCost: 3, costInc: 1.4 });
+    return allSkills;
   }
 
-  /** Convert time in milliseconds to ```string``` representation.
-   * @param {number} time The time in milliseconds
-   * @return {string} The formatted time: ```mm:ss``` */
-  function formatTime(time = 0) {
-    let min = Math.trunc(time / 6e4);
-    let sec = Math.trunc(time % 6e4) / 1e3;
-    sec = sec < 10 ? '0' + sec : sec;
-    min = min < 10 ? '0' + min : min;
-    return `${min}:${sec}`;
+  function calculateLevels(skill, currentLevel, sp) {
+    let count = Math.trunc(sp / (5 * Math.pow(10, 8.7)));
+    while (calculateCost(skill, currentLevel, count) > sp) count = Math.trunc(count / 2);
+    return Math.max(1, count);
   }
 
-  /** Return a ```string``` representation of progress as a bar.
-   * @param {number} currentProgress The current progress.
-   * @param {number} fullProgress Equals to ```100%``` of the progress.
-   * @param {number} maxChar The number of characters the progress bar should display, excluding the enclosing characters.
-   * @returns The progress bar as a ```string```. */
-  function progressBar(currentProgress, fullProgress, maxChar = 10) {
-    const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
-    return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(Math.max(0, maxChar - progress))}\u2524`;
+  function calculateCost(skill, currentLevel, count = 1) {
+    // if (count < 0 || count % 1 != 0) return;
+    const preMult = (count * (2 * skill.baseCost + skill.costInc * (2 * currentLevel + count + 1))) / 2;
+    const unFloored = preMult * nodeSkillCost - count / 2;
+    return Math.floor(unFloored);
   }
+}
+
+/** Convert ```HEX``` colors to ```ANSI``` colors, default is ```#ffffff```. This color is used for text (foreground).
+ * @param {string} colorHex color in hex format
+ * @returns ```Unicode``` string for the color */
+function getColor(colorHex = '#ffffff') {
+  if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
+  const r = parseInt(colorHex.substring(1, 3), 16);
+  const g = parseInt(colorHex.substring(3, 5), 16);
+  const b = parseInt(colorHex.substring(5, 7), 16);
+  return `\u001b[38;2;${r};${g};${b}m`;
+}
+
+/** Convert time in milliseconds to ```string``` representation.
+ * @param {number} time The time in milliseconds
+ * @return {string} The formatted time: ```mm:ss``` */
+function formatTime(time = 0) {
+  let min = Math.trunc(time / 6e4);
+  let sec = Math.trunc(time % 6e4) / 1e3;
+  sec = sec < 10 ? '0' + sec : sec;
+  min = min < 10 ? '0' + min : min;
+  return `${min}:${sec}`;
+}
+
+/** Return a ```string``` representation of progress as a bar.
+ * @param {number} currentProgress The current progress.
+ * @param {number} fullProgress Equals to ```100%``` of the progress.
+ * @param {number} maxChar The number of characters the progress bar should display, excluding the enclosing characters.
+ * @returns The progress bar as a ```string```. */
+function progressBar(currentProgress, fullProgress, maxChar = 10) {
+  const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
+  return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(Math.max(0, maxChar - progress))}\u2524`;
 }
 
 const fillWhitespaces = (count = 0) => ' '.repeat(count);
@@ -400,9 +417,20 @@ const chanceLimits = {
   blackOp: 0.95,
 };
 
+const currentBN = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bitNodeN;
+const bnSkillCost = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 2, 8: 1, 9: 1.2, 10: 1, 11: 1, 13: 2 };
+
 const cities = ['Aevum', 'Chongqing', 'Sector-12', 'New Tokyo', 'Ishima', 'Volhaven'];
 const contracts = ['Retirement', 'Bounty Hunter', 'Tracking'];
 const operations = ['Assassination', 'Stealth Retirement Operation', 'Sting Operation', 'Undercover Operation', 'Investigation'];
 const blackOps = ['Operation Typhoon', 'Operation Zero', 'Operation X', 'Operation Titan', 'Operation Ares', 'Operation Archangel', 'Operation Juggernaut', 'Operation Red Dragon', 'Operation K', 'Operation Deckard', 'Operation Tyrell', 'Operation Wallace', 'Operation Shoulder of Orion', 'Operation Hyron', 'Operation Morpheus', 'Operation Ion Storm', 'Operation Annihilus', 'Operation Ultron', 'Operation Centurion', 'Operation Vindictus', 'Operation Daedalus'];
 const blackOpRanks = { 'Operation Typhoon': 2500, 'Operation Zero': 5000, 'Operation X': 7500, 'Operation Titan': 10000, 'Operation Ares': 12500, 'Operation Archangel': 15000, 'Operation Juggernaut': 20000, 'Operation Red Dragon': 25000, 'Operation K': 30000, 'Operation Deckard': 40000, 'Operation Tyrell': 50000, 'Operation Wallace': 75000, 'Operation Shoulder of Orion': 100000, 'Operation Hyron': 125000, 'Operation Morpheus': 150000, 'Operation Ion Storm': 175000, 'Operation Annihilus': 200000, 'Operation Ultron': 250000, 'Operation Centurion': 300000, 'Operation Vindictus': 350000, 'Operation Daedalus': 400000 };
-const skills = [`Blade's Intuition`, 'Cloak', 'Short-Circuit', 'Digital Observer', 'Overclock', 'Reaper', 'Evasive System', 'Hyperdrive'];
+const skills = [
+  { name: `Blade's Intuition`, baseCost: 3, costInc: 2.1 },
+  { name: 'Cloak', baseCost: 2, costInc: 1.1 },
+  { name: 'Short-Circuit', baseCost: 2, costInc: 2.1 },
+  { name: 'Digital Observer', baseCost: 2, costInc: 2.1 },
+  { name: 'Reaper', baseCost: 2, costInc: 2.1 },
+  { name: 'Evasive System', baseCost: 2, costInc: 2.1 },
+  { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 }
+];
