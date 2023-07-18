@@ -1,7 +1,8 @@
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL'); ns.clearLog();
-  const fileName = 'int-log.txt';
+  const fileName = 'int-log.txt',
+    delayHour = 4; // time between each log entry (in hours)
   while (1) {
     const file = ns.read(fileName);
     let [time, int] = ['', ''],
@@ -27,6 +28,6 @@ export async function main(ns) {
     const string = `[${(new Date()).toLocaleString()}] ${currentLevel}, ${currentXp} (${ns.formatNumber(currentXp, 3)})${rate}\n`;
     ns.write(fileName, string, 'a');
     ns.print(`Logged at: ${(new Date()).toLocaleString()}`);
-    await ns.sleep(3600e3);
+    await ns.sleep(delayHour * 3600e3);
   }
 }
