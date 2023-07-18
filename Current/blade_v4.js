@@ -1,5 +1,5 @@
-/** Version 4.12.2
- * No longer ask for confirmation to activate Post-Blade
+/** Version 4.12.3
+ * Fix Post-Blade small bug
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -29,8 +29,9 @@ export async function main(ns) {
   const populationOf = city => ns.bladeburner.getCityEstimatedPopulation(city);
   const actionCount = (type = '', name = '') => ns.bladeburner.getActionCountRemaining(type, name);
 
+  let postBlade = false;
   let currentBlackOp = getCurrentBlackOp();
-  let postBlade = currentBlackOp === '' ? true : false;
+  postBlade = currentBlackOp === '' ? true : false;
 
   currentBlackOp = getCurrentBlackOp();
   let currentOp = getBestOp();
