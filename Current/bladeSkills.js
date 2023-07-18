@@ -1,10 +1,11 @@
-/** Version 1.0
- * Used when entering Post-Blade phase
- * Changes upgrading speed depending on the accumulated points
+/** Version 1.1
+ * Uses new skill upgrading implementation from 'blade_v4.js'
  */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL'); ns.tail(); ns.clearLog();
+
+  const nodeSkillCost = currentBN !== 12 ? bnSkillCost[currentBN] : 1.02 ** parseInt(ns.read('BN_Level.txt'));
 
   while (true) {
     ns.resizeTail(400, skills.length * 25 + 51);
@@ -13,20 +14,20 @@ export async function main(ns) {
   }
 
   async function upgradeSkills() {
-    allSkills.sort((a, b) => ns.bladeburner.getSkillUpgradeCost(a) - ns.bladeburner.getSkillUpgradeCost(b));
+    allSkills.sort((a, b) => ns.bladeburner.getSkillUpgradeCost(a.name) - ns.bladeburner.getSkillUpgradeCost(b.name));
 
     let sp = ns.bladeburner.getSkillPoints();
-    if (sp >= ns.bladeburner.getSkillUpgradeCost(allSkills[0])) ns.setTitle(`Upgrading Skills`);
-    while (sp >= ns.bladeburner.getSkillUpgradeCost(allSkills[0])) {
+    let count = calculateLevels(allSkills[0], ns.bladeburner.getSkillLevel(allSkills[0].name), sp);
+    while (sp >= ns.bladeburner.getSkillUpgradeCost(allSkills[0].name, count)) {
       ns.setTitle(`Upgrading Skills`);
-      const count = Math.max(1, Math.trunc(Math.pow(sp / 5e8, 2)));
-      ns.bladeburner.upgradeSkill(allSkills[0], count);
+      ns.bladeburner.upgradeSkill(allSkills[0].name, count);
       log();
-      allSkills.sort((a, b) => ns.bladeburner.getSkillUpgradeCost(a) - ns.bladeburner.getSkillUpgradeCost(b));
+      allSkills.sort((a, b) => ns.bladeburner.getSkillUpgradeCost(a.name) - ns.bladeburner.getSkillUpgradeCost(b.name));
       sp = ns.bladeburner.getSkillPoints();
+      count = calculateLevels(allSkills[0], ns.bladeburner.getSkillLevel(allSkills[0].name), sp);
       await ns.sleep(0);
     }
-    await ns.sleep(20);
+    await ns.sleep(1);
   }
 
   function log() {
@@ -34,17 +35,39 @@ export async function main(ns) {
     const sp = ns.bladeburner.getSkillPoints();
     ns.print(` ${getColor('#ffff00')}SP: ${getColor('#ffffff')}${ns.formatNumber(sp, 3, 1e6)}`);
     skills.forEach(skill => {
-      const cost = ns.bladeburner.getSkillUpgradeCost(skill);
+      const cost = ns.bladeburner.getSkillUpgradeCost(skill.name);
       ns.print(
-        `${getColor('#ffff00')} ${skill}: ${getColor('#ffffff')}${ns.formatNumber(ns.bladeburner.getSkillLevel(skill), 3, 1e6)} - ` +
+        `${getColor('#ffff00')} ${skill.name}: ${getColor('#ffffff')}${ns.formatNumber(ns.bladeburner.getSkillLevel(skill.name), 3, 1e6)} - ` +
         (sp >= cost ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + `${ns.formatNumber(cost, 3, 1e6)}`
       );
     });
   }
+
+  function calculateLevels(skill, currentLevel, sp) {
+    let count = Math.trunc(sp / (5 * Math.pow(10, 8.7)));
+    while (calculateCost(skill, currentLevel, count) > sp) count = Math.trunc(count / 3);
+    return Math.max(1, count);
+  }
+
+  function calculateCost(skill, currentLevel, count = 1) {
+    const preMult = (count * (2 * skill.baseCost + skill.costInc * (2 * currentLevel + count + 1))) / 2;
+    const unFloored = preMult * nodeSkillCost - count / 2;
+    return Math.floor(unFloored);
+  }
 }
 
-const skills = [`Blade's Intuition`, 'Cloak', 'Short-Circuit', 'Digital Observer', 'Reaper', 'Evasive System', 'Hyperdrive',
-  // 'Hands of Midas'
+const currentBN = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bitNodeN;
+const bnSkillCost = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 2, 8: 1, 9: 1.2, 10: 1, 11: 1, 13: 2 };
+
+const skills = [
+  { name: `Blade's Intuition`, baseCost: 3, costInc: 2.1 },
+  { name: 'Cloak', baseCost: 2, costInc: 1.1 },
+  { name: 'Short-Circuit', baseCost: 2, costInc: 2.1 },
+  { name: 'Digital Observer', baseCost: 2, costInc: 2.1 },
+  { name: 'Reaper', baseCost: 2, costInc: 2.1 },
+  { name: 'Evasive System', baseCost: 2, costInc: 2.1 },
+  { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 },
+  { name: 'Hands of Midas', baseCost: 2, costInc: 2.5 },
 ];
 const allSkills = skills.slice();
 

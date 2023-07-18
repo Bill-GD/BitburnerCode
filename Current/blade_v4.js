@@ -1,6 +1,5 @@
-/** Version 4.12.1
- * Merged with 'bladeSkill.js' and uses ns.asleep() instead of ns.sleep()
- * Now limits skill levels to upgrade to avoid cost being higher than available points
+/** Version 4.12.2
+ * No longer ask for confirmation to activate Post-Blade
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -30,17 +29,8 @@ export async function main(ns) {
   const populationOf = city => ns.bladeburner.getCityEstimatedPopulation(city);
   const actionCount = (type = '', name = '') => ns.bladeburner.getActionCountRemaining(type, name);
 
-  let postBlade = false;
   let currentBlackOp = getCurrentBlackOp();
-
-  if (currentBlackOp === '') {
-    postBlade = await ns.prompt('Operation Daedalus is completed\n' + 'Continue anyway?');
-    if (!postBlade) {
-      ns.bladeburner.stopBladeburnerAction();
-      ns.closeTail();
-      ns.exit();
-    }
-  }
+  let postBlade = currentBlackOp === '' ? true : false;
 
   currentBlackOp = getCurrentBlackOp();
   let currentOp = getBestOp();
@@ -365,12 +355,11 @@ export async function main(ns) {
 
   function calculateLevels(skill, currentLevel, sp) {
     let count = Math.trunc(sp / (5 * Math.pow(10, 8.7)));
-    while (calculateCost(skill, currentLevel, count) > sp) count = Math.trunc(count / 2);
+    while (calculateCost(skill, currentLevel, count) > sp) count = Math.trunc(count / 3);
     return Math.max(1, count);
   }
 
   function calculateCost(skill, currentLevel, count = 1) {
-    // if (count < 0 || count % 1 != 0) return;
     const preMult = (count * (2 * skill.baseCost + skill.costInc * (2 * currentLevel + count + 1))) / 2;
     const unFloored = preMult * nodeSkillCost - count / 2;
     return Math.floor(unFloored);
