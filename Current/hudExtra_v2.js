@@ -1,6 +1,5 @@
-/** Version 2.2.11
- * Merged 'Join' into 'Blade' (join Blade button)
- * Added Stanek button: accept gift, charge fragments
+/** Version 2.2.12
+ * Added/Changed script(s) of: Stanek, Sleeve
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -319,19 +318,18 @@ export async function main(ns) {
       }
       if (optionStates.blade) {
         ns.exec('joinBlade.js', 'home', { preventDuplicates: true });
+        await ns.sleep(10);
         ns.exec('blade_v4.js', 'home', { preventDuplicates: true });
         optionStates.blade = false;
       }
       if (optionStates.stanek) {
         ns.exec('stanek_v2.js', 'home', { preventDuplicates: true });
-        ns.exec('stanekThread.js', 'home', { preventDuplicates: true });
-        const thread = parseInt(ns.read('thread.txt'));
-        if (thread >= 1)
-          ns.exec('chargeStanek.js', 'home', { preventDuplicates: true, threads: thread })
+        ns.exec('manageChargeStanek.js', 'home', { preventDuplicates: true });
+        ns.exec('spreadStanekCharger.js', 'home', { preventDuplicates: true });
         optionStates.stanek = false;
       }
       if (optionStates.sleeve) {
-        ns.exec('sleeve_v2.js', 'home', { preventDuplicates: true });
+        ns.exec('sleevePresets.js', 'home', { preventDuplicates: true });
         optionStates.sleeve = false;
       }
       if (optionStates.corp) {
