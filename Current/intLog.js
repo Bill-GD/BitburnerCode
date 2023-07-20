@@ -3,6 +3,18 @@ export async function main(ns) {
   ns.disableLog('ALL'); ns.clearLog();
   const fileName = 'int-log.txt',
     delayHour = 4; // time between each log entry (in hours)
+  const file = ns.read(fileName);
+  if (file.match(/[M\/\:]/)) {
+    const latest = file.split('\n').filter(line => line !== '').reverse()[0],
+      time = latest.split(/,/).map(e => e.trim())[0],
+      oldTime = (new Date(time)).getTime();
+    if (Date.now() - oldTime < delayHour * 3600e3) {
+      const timeToWait = delayHour * 3600e3 - Date.now() + oldTime;
+      ns.print('Waiting for: ', ns.tFormat(timeToWait));
+      await ns.sleep(timeToWait);
+    }
+  }
+
   while (1) {
     const file = ns.read(fileName);
     let [time, level, xp, rate] = ['', '', '', '', '', ''];

@@ -1,6 +1,5 @@
-/** Version 1.1.2
- * Added Diplomacy
- * Only 1 sleeve can Infiltrate at a time
+/** Version 1.1.3
+ * Automatically continue preset action wihtout restarting script
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -77,19 +76,19 @@ export async function main(ns) {
 
   if (type !== 'Recovery') for (let i = 0; i < 8; i++) ns.sleeve.setToIdle(i);
 
-  let assigned = action?.includes('Infil') ? Array(8).fill().map((e, i) => i).filter(id => ns.sleeve.getTask(id)).length > 0 : false;
   while (1) {
     let allSleeves = [];
     for (let i = 0; i < 8; i++) {
       const task = ns.sleeve.getTask(i);
       allSleeves.push([i, ns.sleeve.getSleeve(i), task ? true : false, action]);
     }
+    let assigned = action?.includes('Infil') ? allSleeves.filter(s => ns.sleeve.getTask(s[0])).length > 0 : false;
     allSleeves = allSleeves.sort((a, b) => b[1].storedCycles - a[1].storedCycles);
 
     for (const sleeve of allSleeves) {
       if (type === 'Recovery' && ns.sleeve.getSleeve(sleeve[0]).shock <= 0) continue;
       const task = ns.sleeve.getTask(sleeve[0]);
-      if (task && task.type.includes('BLADE') && task.actionType === 'Contracts') continue;
+      if (task && task.type === 'BLADEBURNER' && task.actionType === 'Contracts') continue;
       if (sleeve[1].storedCycles < cycleLimit * 10) {
         if (task && task.cyclesNeeded - task.cyclesWorked > sleeve[1].storedCycles) {
           ns.sleeve.setToIdle(sleeve[0]);
@@ -124,6 +123,7 @@ export async function main(ns) {
 
   function logTask() {
     ns.clearLog();
+    ns.print(' Preset: ', preset);
     for (let id = 0; id < 8; id++) {
       let task = ns.sleeve.getTask(id);
       if (!task) task = `Idle`;
@@ -144,6 +144,6 @@ export async function main(ns) {
         }
       ns.print(` ${id}: ${task} - ${ns.formatNumber(ns.sleeve.getSleeve(id).storedCycles, 3, 1e6)}`);
     }
-    ns.resizeTail(300, 8 * 25 + 35);
+    ns.resizeTail(300, 9 * 25 + 30);
   }
 }

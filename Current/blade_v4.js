@@ -1,5 +1,8 @@
-/** Version 4.12.3
- * Fix Post-Blade small bug
+/** Version 4.12.4
+ * Calculates the actual success chance of Assassination
+ * Post-Blade: only upgrade Hyperdrive 
+ * -> enable Midas Sleeve contract is used to get money -> NFG
+ * -> Alternatively: use 'bladeSkills.js'
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -77,7 +80,7 @@ export async function main(ns) {
 
     await ns.sleep(1);
     if (postBlade) {
-      // await checkChaos();
+      await checkChaos();
       if (actionCount('op', 'Assassination') <= 0) {
         const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
         const successNeeded = Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - ns.bladeburner.getActionSuccesses('op', 'Assassination');
@@ -110,7 +113,7 @@ export async function main(ns) {
 
     lines.push(' h-----------------==={ sCURRENT h}===-----------------');
     const task = `${name}` + (maxCount > 1 ? ` (${count} / ${maxCount})` : '');
-    lines.push(` s${fillWhitespaces((divider.length / 2) - (task.length / 2) - 1)}v${task}`);
+    lines.push(` s${fillWhitespaces((divider.length / 2) - (task.length / 2))}v${task}`);
     type !== 'General' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(successChance(type, name)[0], 2)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${formatTime(ns.bladeburner.getActionCurrentTime())} / ${formatTime(totalTime)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(ns.bladeburner.getActionCurrentTime(), totalTime, 20)}`);
@@ -295,8 +298,14 @@ export async function main(ns) {
   async function checkChaos() {
     const currentCity = ns.bladeburner.getCity();
     const chaos = ns.bladeburner.getCityChaos(currentCity);
-    if (chaos <= 50) return;
-    else ns.toast(`Current Chaos is more than 50 (${chaos}). Use Sleeve (Diplomacy) if needed.`, 'info', 20e3);
+    if (postBlade) {
+      if (getAssDisplayChance() >= 1) return;
+      while (getAssDisplayChance() < 0.99)
+        await performAction('gen', 'Diplomacy', 1, false, false);
+    } else {
+      if (chaos <= 50) return;
+      ns.toast(`Current Chaos is more than 50 (${chaos}). Use Sleeve (Diplomacy) if needed.`, 'info', 20e3);
+    }
   }
 
   /** Perform the current blackop if ```chance === 100%``` and ```rank``` is sufficient. */
@@ -348,8 +357,11 @@ export async function main(ns) {
   }
 
   function getAllSkills() {
-    const allSkills = skills.slice();
-    if (postBlade) allSkills.push({ name: 'Hands of Midas', baseCost: 2, costInc: 2.5 });
+    let allSkills = skills.slice();
+    if (postBlade) {
+      allSkills = skills.slice(-1);
+      // allSkills.push({ name: 'Hands of Midas', baseCost: 2, costInc: 2.5 });
+    }
     else allSkills.push({ name: 'Overclock', baseCost: 3, costInc: 1.4 });
     return allSkills;
   }
@@ -364,6 +376,88 @@ export async function main(ns) {
     const preMult = (count * (2 * skill.baseCost + skill.costInc * (2 * currentLevel + count + 1))) / 2;
     const unFloored = preMult * nodeSkillCost - count / 2;
     return Math.floor(unFloored);
+  }
+
+  function getAssDisplayChance() {
+    return Math.min(1, getAssActualChance());
+  }
+
+  function getAssActualChance() {
+    let difficulty = 1500 * Math.pow(1.06, ns.bladeburner.getActionMaxLevel('op', 'Assassination') - 1);
+    let competence = 0;
+
+    for (const stat of Object.keys(weights)) {
+      if (Object.hasOwn(weights, stat)) {
+        const playerStatLvl = queryStatFromString(stat); // getPlayer().skills
+        const key = "eff" + stat.charAt(0).toUpperCase() + stat.slice(1);
+        let effMultiplier = getSkillMults(key);
+        if (effMultiplier === null) effMultiplier = 1;
+        competence += weights[stat] * Math.pow(effMultiplier * playerStatLvl, decays[stat]);
+      }
+    }
+    competence *= calculateIntelligenceBonus(ns.getPlayer().skills.intelligence, 0.75);
+    competence *= calculateStaminaPenalty();
+
+    // competence *= getTeamSuccessBonus(inst);
+    competence *= 1;
+
+    competence *= getChaosCompetencePenalty();
+    difficulty *= getChaosDifficultyBonus();
+
+    // Factor skill multipliers into success chance
+    competence *= getSkillMults('successChanceAll');
+    competence *= getSkillMults('successChanceOperation');
+    competence *= getSkillMults('successChanceStealth');
+    competence *= getSkillMults('successChanceKill');
+    competence *= ns.getPlayer().mults.bladeburner_success_chance;
+
+    return competence / difficulty;
+  }
+
+  function queryStatFromString(str) {
+    const tempStr = str.toLowerCase();
+    if (tempStr.includes("hack")) return ns.getPlayer().skills.hacking;
+    if (tempStr.includes("str")) return ns.getPlayer().skills.strength;
+    if (tempStr.includes("def")) return ns.getPlayer().skills.defense;
+    if (tempStr.includes("dex")) return ns.getPlayer().skills.dexterity;
+    if (tempStr.includes("agi")) return ns.getPlayer().skills.agility;
+    if (tempStr.includes("cha")) return ns.getPlayer().skills.charisma;
+    if (tempStr.includes("int")) return ns.getPlayer().skills.intelligence;
+  }
+
+  function getSkillMults(str) {
+    if (str.includes("Str")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02;
+    if (str.includes("Def")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02;
+    if (str.includes("Dex")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04;
+    if (str.includes("Agi")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04;
+    if (str.includes("ChanceAll")) return ns.bladeburner.getSkillLevel(`Blade's Intuition`) * 0.03;
+    if (str.includes("ChanceStealth")) return ns.bladeburner.getSkillLevel(`Cloak`) * 0.055;
+    if (str.includes("ChanceKill")) return ns.bladeburner.getSkillLevel(`Short-Circuit`) * 0.055;
+    if (str.includes("ChanceOperation")) return ns.bladeburner.getSkillLevel(`Digital Observer`) * 0.04;
+    return 1;
+  }
+
+  function calculateIntelligenceBonus(intelligence, weight = 1) {
+    return 1 + (weight * Math.pow(intelligence, 0.8)) / 600;
+  }
+
+  function calculateStaminaPenalty() {
+    const [stamina, maxStamina] = ns.bladeburner.getStamina();
+    return Math.min(1, stamina / (0.5 * maxStamina));
+  }
+
+  function getChaosCompetencePenalty() {
+    return Math.pow(ns.bladeburner.getCityEstimatedPopulation(ns.bladeburner.getCity()) / 1e9, 0.7);
+  }
+
+  function getChaosDifficultyBonus() {
+    const chaos = ns.bladeburner.getCityChaos(ns.bladeburner.getCity());
+    if (chaos > 50) {
+      const diff = 1 + (chaos - 50);
+      const mult = Math.pow(diff, 0.5);
+      return mult;
+    }
+    return 1;
   }
 }
 
@@ -424,3 +518,6 @@ const skills = [
   { name: 'Evasive System', baseCost: 2, costInc: 2.1 },
   { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 }
 ];
+// Ass
+const weights = { hack: 0.1, str: 0.1, def: 0.1, dex: 0.3, agi: 0.3, cha: 0, int: 0.1, },
+  decays = { hack: 0.6, str: 0.8, def: 0.8, dex: 0.8, agi: 0.8, cha: 0, int: 0.8, };

@@ -1,5 +1,5 @@
-/** Version 1.1
- * Uses new skill upgrading implementation from 'blade_v4.js'
+/** Version 1.1.1
+ * Only upgrade Hyperdrive & Midas
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -60,12 +60,6 @@ const currentBN = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveDa
 const bnSkillCost = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 2, 8: 1, 9: 1.2, 10: 1, 11: 1, 13: 2 };
 
 const skills = [
-  { name: `Blade's Intuition`, baseCost: 3, costInc: 2.1 },
-  { name: 'Cloak', baseCost: 2, costInc: 1.1 },
-  { name: 'Short-Circuit', baseCost: 2, costInc: 2.1 },
-  { name: 'Digital Observer', baseCost: 2, costInc: 2.1 },
-  { name: 'Reaper', baseCost: 2, costInc: 2.1 },
-  { name: 'Evasive System', baseCost: 2, costInc: 2.1 },
   { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 },
   { name: 'Hands of Midas', baseCost: 2, costInc: 2.5 },
 ];
