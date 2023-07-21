@@ -1,8 +1,6 @@
-/** Version 4.12.4
- * Calculates the actual success chance of Assassination
- * Post-Blade: only upgrade Hyperdrive 
- * -> enable Midas Sleeve contract is used to get money -> NFG
- * -> Alternatively: use 'bladeSkills.js'
+/** Version 4.12.5
+ * Limits operations to generate to 100
+ * If chaos to high, Diplomacy until chaos is 50 or less
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -83,8 +81,8 @@ export async function main(ns) {
       await checkChaos();
       if (actionCount('op', 'Assassination') <= 0) {
         const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
-        const successNeeded = Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - ns.bladeburner.getActionSuccesses('op', 'Assassination');
-        while (actionCount('op', 'Assassination') < successNeeded) {
+        const opToGenerate = Math.min(100, Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - ns.bladeburner.getActionSuccesses('op', 'Assassination'));
+        while (actionCount('op', 'Assassination') < opToGenerate) {
           await ns.sleep(10);
           await performAction('gen', 'Incite Violence', 1, false, false);
         }
@@ -300,7 +298,7 @@ export async function main(ns) {
     const chaos = ns.bladeburner.getCityChaos(currentCity);
     if (postBlade) {
       if (getAssDisplayChance() >= 1) return;
-      while (getAssDisplayChance() < 0.99)
+      while (ns.bladeburner.getCityChaos(currentCity) > 50)
         await performAction('gen', 'Diplomacy', 1, false, false);
     } else {
       if (chaos <= 50) return;

@@ -1,5 +1,5 @@
-/** Version 2.2.12
- * Added/Changed script(s) of: Stanek, Sleeve
+/** Version 2.2.13
+ * Uses the script option for 'sleevePresets.js' -> delay tail
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -329,7 +329,7 @@ export async function main(ns) {
         optionStates.stanek = false;
       }
       if (optionStates.sleeve) {
-        ns.exec('sleevePresets.js', 'home', { preventDuplicates: true });
+        ns.exec('sleeveChoosePresets.js', 'home', { preventDuplicates: true });
         optionStates.sleeve = false;
       }
       if (optionStates.corp) {

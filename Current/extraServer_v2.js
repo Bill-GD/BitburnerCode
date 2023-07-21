@@ -1,5 +1,5 @@
-/** Version 2.0.4
- * No longer copy any files to any of the purchased servers (script is now for server management only)
+/** Version 2.1
+ * Added support for purchasing servers while grinding int
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -8,6 +8,10 @@ export async function main(ns) {
     ns.alert('Purchased servers are not available in this BitNode');
     ns.exit();
   }
+
+  const flagOptions = ns.flags([
+    ['script', false],
+  ]);
 
   const playerMoney = () => ns.getServerMoneyAvailable('home');
   const maxRamOf = server => ns.getServerMaxRam(server);
@@ -19,13 +23,13 @@ export async function main(ns) {
   let boughtServers = ns.getPurchasedServers();
   const serverName = 'extraServer-';
 
-  const option = await ns.prompt(
+  const option = flagOptions.script ? 'purchase' : (await ns.prompt(
     `Choose:\n` +
     ` 'cost' -> cost for 1 server with specified RAM\n` +
     ` 'purchase' -> buy servers\n` +
     ` 'upgrade' -> upgrade RAM of existing servers\n`,
     { 'type': 'select', 'choices': ['cost', 'purchase', 'upgrade'] }
-  );
+  ));
 
   // gets max ram corresponding to the current BN
   const maxRam = 1 << (31 - Math.clz32(Math.round(ns.getBitNodeMultipliers().PurchasedServerMaxRam * Math.pow(2, 20))));
@@ -93,11 +97,11 @@ export async function main(ns) {
     }
 
     const option = ['Buy One', 'Buy n', 'Buy Max'];
-    const choice = await ns.prompt(`Owned: ${boughtServers.length}/${serverLimit}\nChoose purchase quantity:`, { 'type': 'select', 'choices': option });
+    const choice = flagOptions.script ? 'Buy Max' : (await ns.prompt(`Owned: ${boughtServers.length}/${serverLimit}\nChoose purchase quantity:`, { 'type': 'select', 'choices': option }));
     if (!choice) ns.exit();
 
     const ramFormatted = ramChoices.map(r => ns.formatRam(r, 2));
-    const ramChoice = ramChoices[ramFormatted.indexOf(await ns.prompt('Choose RAM for server:', { 'type': 'select', 'choices': ramFormatted }))];
+    const ramChoice = flagOptions.script ? ramChoices.slice(-1)[0] : ramChoices[ramFormatted.indexOf(await ns.prompt('Choose RAM for server:', { 'type': 'select', 'choices': ramFormatted }))];
     if (!ramChoice) ns.exit();
 
     switch (choice) {

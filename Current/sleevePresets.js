@@ -1,11 +1,34 @@
-/** Version 1.1.3
- * Automatically continue preset action wihtout restarting script
+/** Version 1.2
+ * Added support for other script (ns.run() or ns.exec())
  */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL');
   ns.clearLog();
   ns.tail();
+
+  const flagOptions = ns.flags([
+    ['script', false],
+    ['autoClose', false],
+    ['preset', ''],
+  ]);
+
+  ns.atExit(() => flagOptions.autoClose && ns.closeTail());
+
+  let preset = flagOptions.script ? flagOptions.preset : (await ns.prompt(
+    'Use preset?\nThese apply to all sleeves.\n\nIgnore to skip',
+    {
+      'type': 'select',
+      'choices': [
+        'Recover',
+        'Combat',
+        'Karma',
+        'Infiltrate',
+        'Diplomacy',
+        'Analysis',
+      ]
+    }
+  ));
 
   let crimes = Object.keys(ns.enums.CrimeType).map(c => ns.enums.CrimeType[c])
     .filter(a => ns.singularity.getCrimeStats(a).time <= 30e3)
@@ -22,21 +45,6 @@ export async function main(ns) {
         return (score2 / stats2.time) - (score1 / stats1.time);
       } catch { }
     });
-
-  let preset = await ns.prompt(
-    'Use preset?\nThese apply to all sleeves.\n\nIgnore to skip',
-    {
-      'type': 'select',
-      'choices': [
-        'Recover',
-        'Combat',
-        'Karma',
-        'Infiltrate',
-        'Diplomacy',
-        'Analysis',
-      ]
-    }
-  );
 
   let type, action = '';
 
