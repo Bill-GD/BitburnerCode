@@ -1,13 +1,35 @@
-/** Version 1.0 */
+/** Version 1.0.1
+ * Improved conditions to install aug
+ */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.tail(); ns.disableLog('ALL'); ns.clearLog();
-  if (ns.singularity.checkFactionInvitations().includes('Sector-12')) ns.run('joinFaction.js', { preventDuplicates: true });
   let oldMoney = ns.getServerMoneyAvailable('home');
   while (1) {
+    if (ns.singularity.checkFactionInvitations().includes('Sector-12')) ns.run('joinFaction.js', { preventDuplicates: true });
     if (ns.scriptRunning('sleeveContracts.js', 'home')) {
-      if (ns.getServerMoneyAvailable('home') - oldMoney < ns.singularity.getAugmentationPrice('NeuroFlux Governor') / 1e3)
-        ns.run('int_InstallAug.js');
+      // if money gain rate is much lower than current amount (too slow)
+      // AND the current amount is not enough for aug
+      // -> install aug
+      let [reqRep, currentRep] = [ns.singularity.getAugmentationRepReq('NeuroFlux Governor'), ns.singularity.getFactionRep('Sector-12')];
+      const donation = (reqRep - currentRep) * 1e6 / ns.getPlayer().mults.faction_rep;
+      if (ns.getServerMoneyAvailable('home') !== oldMoney && ns.getServerMoneyAvailable('home') - oldMoney < oldMoney / 1e4
+        && ns.getServerMoneyAvailable('home') < ns.singularity.getAugmentationPrice('NeuroFlux Governor')
+        // && ns.getServerMoneyAvailable('home') < donation
+      ) {
+        ns.write(
+          'check.txt',
+          `Old: ${oldMoney} (${ns.formatNumber(oldMoney, 3)})\n` +
+          `New: ${ns.getServerMoneyAvailable('home')} (${ns.formatNumber(ns.getServerMoneyAvailable('home'), 3)})\n` +
+          `Ratio (O/N): ${oldMoney / ns.getServerMoneyAvailable('home')}\n` +
+          `Cost: ${ns.singularity.getAugmentationPrice('NeuroFlux Governor')} (${ns.formatNumber(ns.singularity.getAugmentationPrice('NeuroFlux Governor'), 3)})\n` +
+          `Rep req.: ${reqRep} (${ns.formatNumber(reqRep, 3)})\n` +
+          `Rep: ${currentRep} (${ns.formatNumber(currentRep, 3)})\n` +
+          `Donation needed: ${donation} (${ns.formatNumber(donation, 3)})`,
+          'w'
+        )
+        ns.spawn('int_InstallAug.js');
+      }
       oldMoney = ns.getServerMoneyAvailable('home');
     }
 
@@ -26,6 +48,6 @@ export async function main(ns) {
       ns.print('Sleeves finished Contracts');
     }
 
-    await ns.sleep(10e3);
+    await ns.sleep(1e3);
   }
 }
