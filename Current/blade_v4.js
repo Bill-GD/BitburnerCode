@@ -1,6 +1,10 @@
-/** Version 4.12.5
- * Limits operations to generate to 100
- * If chaos to high, Diplomacy until chaos is 50 or less
+/** Version 4.12.6
+ * Post-Blade:
+ * - Calculates success chance of all contracts & Assassination
+ * - Chaos handler now checks for contracts chance as well
+ * Now also upgrade Tracer
+ * Fixed action count inconsistency between log title and content
+ * Fixed skill multipliers being 0
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -214,7 +218,7 @@ export async function main(ns) {
    * @param {boolean} stamina Whether to check stamina. Set to ```false``` to avoid stamina check (and possible infinite loop). Defaults to ```true```.
    * @param {boolean} blackOp Whether to check for Black Op. Set to ```false``` to disable Black Op (why?). Defaults to ```true```. */
   async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
-    for (let i = 0; i < count; i++) {
+    for (let i = 1; i <= count; i++) {
       if (actionCount(type, action) <= 0) return;
       ns.bladeburner.stopBladeburnerAction();
 
@@ -236,7 +240,7 @@ export async function main(ns) {
         ns.setTitle(
           `R:${ns.formatNumber(rank, rank >= 1e6 ? 2 : 0, 1e6)} | ` +
           `D:${ns.formatPercent(successChance('blackop', 'Operation Daedalus')[0], 0)} | ` +
-          `${count > 1 ? (i + 1) + '/' + count + ' ' : ''}${type !== 'blackop' ? action : 'Op. ' + action.substring(10)}`
+          `${count > 1 ? i + '/' + count + ' ' : ''}${type !== 'blackop' ? action : 'Op. ' + action.substring(10)}`
         );
 
         const totalTime = ns.bladeburner.getActionTime(type, action);
@@ -244,8 +248,8 @@ export async function main(ns) {
 
         while (current <= totalTime) {
           const bonus = ns.bladeburner.getBonusTime();
+          logAction(ns.bladeburner.getCurrentAction().type, ns.bladeburner.getCurrentAction().name, i, count);
           await ns.sleep(1e3);
-          logAction(ns.bladeburner.getCurrentAction().type, ns.bladeburner.getCurrentAction().name, i + 1, count);
           current = ns.bladeburner.getActionCurrentTime();
           if (ns.bladeburner.getCurrentAction().type === 'Idle') break;
           if (bonus <= 1e3 && current === 0) break;
@@ -297,7 +301,8 @@ export async function main(ns) {
     const currentCity = ns.bladeburner.getCity();
     const chaos = ns.bladeburner.getCityChaos(currentCity);
     if (postBlade) {
-      if (getAssDisplayChance() >= 1) return;
+      const [con, op] = [getActionDisplayChance('contract', 'Bounty Hunter'), getActionDisplayChance('op', 'Assassination')];
+      if (con >= 1 && op >= 1) return;
       while (ns.bladeburner.getCityChaos(currentCity) > 50)
         await performAction('gen', 'Diplomacy', 1, false, false);
     } else {
@@ -356,10 +361,7 @@ export async function main(ns) {
 
   function getAllSkills() {
     let allSkills = skills.slice();
-    if (postBlade) {
-      allSkills = skills.slice(-1);
-      // allSkills.push({ name: 'Hands of Midas', baseCost: 2, costInc: 2.5 });
-    }
+    if (postBlade) allSkills = skills.slice(-1);
     else allSkills.push({ name: 'Overclock', baseCost: 3, costInc: 1.4 });
     return allSkills;
   }
@@ -376,37 +378,54 @@ export async function main(ns) {
     return Math.floor(unFloored);
   }
 
-  function getAssDisplayChance() {
-    return Math.min(1, getAssActualChance());
+  function getActionDisplayChance(type, actionName, city = ns.bladeburner.getCity()) {
+    return Math.min(1, getActionChance(type, actionName, city));
   }
 
-  function getAssActualChance() {
-    let difficulty = 1500 * Math.pow(1.06, ns.bladeburner.getActionMaxLevel('op', 'Assassination') - 1);
+  /**
+   * Return the success chance of the given action if you're in the given city (not represented as percentage or within 0-1).
+   * @param {string} type Type of the action. ```Contract``` or ```Operation```.
+   * @param {string} actionName Name of the action.
+   * @param {string} city City name. Default is the current city.
+   * @returns Success chance of the action.
+   */
+  function getActionChance(type, actionName, city = ns.bladeburner.getCity()) {
+    if (type.toLowerCase() !== 'contract' && !type.toLowerCase().includes('op')) return;
+    if (!cities.includes(city)) return;
+
+    const actionType = type.toLowerCase().includes('contract') ? actions.Contract : actions.Operation;
+    const action = actionType[actionName];
+
+    let difficulty = action.baseDifficulty * Math.pow(action.difficultyFac, ns.bladeburner.getActionMaxLevel(type.toLowerCase(), action.name) - 1);
     let competence = 0;
 
-    for (const stat of Object.keys(weights)) {
-      if (Object.hasOwn(weights, stat)) {
+    for (const stat of Object.keys(action.weights)) {
+      if (Object.hasOwn(action.weights, stat)) {
         const playerStatLvl = queryStatFromString(stat); // getPlayer().skills
-        const key = "eff" + stat.charAt(0).toUpperCase() + stat.slice(1);
+        const key = 'eff' + stat.charAt(0).toUpperCase() + stat.slice(1);
         let effMultiplier = getSkillMults(key);
         if (effMultiplier === null) effMultiplier = 1;
-        competence += weights[stat] * Math.pow(effMultiplier * playerStatLvl, decays[stat]);
+        competence += action.weights[stat] * Math.pow(effMultiplier * playerStatLvl, action.decays[stat]);
       }
     }
     competence *= calculateIntelligenceBonus(ns.getPlayer().skills.intelligence, 0.75);
     competence *= calculateStaminaPenalty();
 
-    // competence *= getTeamSuccessBonus(inst);
+    // competence *= getTeamSuccessBonus();
     competence *= 1;
 
-    competence *= getChaosCompetencePenalty();
-    difficulty *= getChaosDifficultyBonus();
+    competence *= getChaosCompetencePenalty(city);
+    difficulty *= getChaosDifficultyBonus(city);
 
     // Factor skill multipliers into success chance
     competence *= getSkillMults('successChanceAll');
-    competence *= getSkillMults('successChanceOperation');
-    competence *= getSkillMults('successChanceStealth');
-    competence *= getSkillMults('successChanceKill');
+
+    if (type.toLowerCase().includes('contract')) competence *= getSkillMults('successChanceContract');
+    if (type.toLowerCase().includes('op')) competence *= getSkillMults('successChanceOperation');
+
+    if (action.isStealth) competence *= getSkillMults('successChanceStealth');
+    if (action.isKill) competence *= getSkillMults('successChanceKill');
+
     competence *= ns.getPlayer().mults.bladeburner_success_chance;
 
     return competence / difficulty;
@@ -414,24 +433,23 @@ export async function main(ns) {
 
   function queryStatFromString(str) {
     const tempStr = str.toLowerCase();
-    if (tempStr.includes("hack")) return ns.getPlayer().skills.hacking;
-    if (tempStr.includes("str")) return ns.getPlayer().skills.strength;
-    if (tempStr.includes("def")) return ns.getPlayer().skills.defense;
-    if (tempStr.includes("dex")) return ns.getPlayer().skills.dexterity;
-    if (tempStr.includes("agi")) return ns.getPlayer().skills.agility;
-    if (tempStr.includes("cha")) return ns.getPlayer().skills.charisma;
-    if (tempStr.includes("int")) return ns.getPlayer().skills.intelligence;
+    if (tempStr.includes('hack')) return ns.getPlayer().skills.hacking;
+    if (tempStr.includes('str')) return ns.getPlayer().skills.strength;
+    if (tempStr.includes('def')) return ns.getPlayer().skills.defense;
+    if (tempStr.includes('dex')) return ns.getPlayer().skills.dexterity;
+    if (tempStr.includes('agi')) return ns.getPlayer().skills.agility;
+    if (tempStr.includes('cha')) return ns.getPlayer().skills.charisma;
+    if (tempStr.includes('int')) return ns.getPlayer().skills.intelligence;
   }
 
   function getSkillMults(str) {
-    if (str.includes("Str")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02;
-    if (str.includes("Def")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02;
-    if (str.includes("Dex")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04;
-    if (str.includes("Agi")) return ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04;
-    if (str.includes("ChanceAll")) return ns.bladeburner.getSkillLevel(`Blade's Intuition`) * 0.03;
-    if (str.includes("ChanceStealth")) return ns.bladeburner.getSkillLevel(`Cloak`) * 0.055;
-    if (str.includes("ChanceKill")) return ns.bladeburner.getSkillLevel(`Short-Circuit`) * 0.055;
-    if (str.includes("ChanceOperation")) return ns.bladeburner.getSkillLevel(`Digital Observer`) * 0.04;
+    if (str.includes('Str') || str.includes('Def')) return 1 + ns.bladeburner.getSkillLevel('Reaper') * 0.02;
+    if (str.includes('Dex') || str.includes('Agi')) return 1 + (ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04);
+    if (str.includes('ChanceAll')) return 1 + ns.bladeburner.getSkillLevel(`Blade's Intuition`) * 0.03;
+    if (str.includes('ChanceStealth')) return 1 + ns.bladeburner.getSkillLevel(`Cloak`) * 0.055;
+    if (str.includes('ChanceKill')) return 1 + ns.bladeburner.getSkillLevel(`Short-Circuit`) * 0.055;
+    if (str.includes('ChanceOperation')) return 1 + ns.bladeburner.getSkillLevel(`Digital Observer`) * 0.04;
+    if (str.includes('ChanceContract')) return 1 + ns.bladeburner.getSkillLevel(`Tracer`) * 0.04;
     return 1;
   }
 
@@ -444,12 +462,12 @@ export async function main(ns) {
     return Math.min(1, stamina / (0.5 * maxStamina));
   }
 
-  function getChaosCompetencePenalty() {
-    return Math.pow(ns.bladeburner.getCityEstimatedPopulation(ns.bladeburner.getCity()) / 1e9, 0.7);
+  function getChaosCompetencePenalty(city) {
+    return Math.pow(ns.bladeburner.getCityEstimatedPopulation(city) / 1e9, 0.7);
   }
 
-  function getChaosDifficultyBonus() {
-    const chaos = ns.bladeburner.getCityChaos(ns.bladeburner.getCity());
+  function getChaosDifficultyBonus(city) {
+    const chaos = ns.bladeburner.getCityChaos(city);
     if (chaos > 50) {
       const diff = 1 + (chaos - 50);
       const mult = Math.pow(diff, 0.5);
@@ -512,10 +530,43 @@ const skills = [
   { name: 'Cloak', baseCost: 2, costInc: 1.1 },
   { name: 'Short-Circuit', baseCost: 2, costInc: 2.1 },
   { name: 'Digital Observer', baseCost: 2, costInc: 2.1 },
+  { name: 'Tracer', baseCost: 2, costInc: 2.1, },
   { name: 'Reaper', baseCost: 2, costInc: 2.1 },
   { name: 'Evasive System', baseCost: 2, costInc: 2.1 },
   { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 }
 ];
-// Ass
-const weights = { hack: 0.1, str: 0.1, def: 0.1, dex: 0.3, agi: 0.3, cha: 0, int: 0.1, },
-  decays = { hack: 0.6, str: 0.8, def: 0.8, dex: 0.8, agi: 0.8, cha: 0, int: 0.8, };
+const actions = {
+  Contract: {
+    Tracking: {
+      baseDifficulty: 125,
+      difficultyFac: 1.02,
+      weights: { hack: 0, str: 0.05, def: 0.05, dex: 0.35, agi: 0.35, cha: 0.1, int: 0.05, },
+      decays: { hack: 0, str: 0.91, def: 0.91, dex: 0.91, agi: 0.91, cha: 0.9, int: 1, },
+      isStealth: true,
+    },
+    'Bounty Hunter': {
+      baseDifficulty: 250,
+      difficultyFac: 1.04,
+      weights: { hack: 0, str: 0.15, def: 0.15, dex: 0.25, agi: 0.25, cha: 0.1, int: 0.1, },
+      decays: { hack: 0, str: 0.91, def: 0.91, dex: 0.91, agi: 0.91, cha: 0.8, int: 0.9, },
+      isKill: true,
+    },
+    Retirement: {
+      baseDifficulty: 200,
+      difficultyFac: 1.03,
+      weights: { hack: 0, str: 0.2, def: 0.2, dex: 0.2, agi: 0.2, cha: 0.1, int: 0.1, },
+      decays: { hack: 0, str: 0.91, def: 0.91, dex: 0.91, agi: 0.91, cha: 0.8, int: 0.9, },
+      isKill: true,
+    }
+  },
+  Operation: {
+    Assassination: {
+      baseDifficulty: 1500,
+      difficultyFac: 1.06,
+      weights: { hack: 0.1, str: 0.1, def: 0.1, dex: 0.3, agi: 0.3, cha: 0, int: 0.1, },
+      decays: { hack: 0.6, str: 0.8, def: 0.8, dex: 0.8, agi: 0.8, cha: 0, int: 0.8, },
+      isStealth: true,
+      isKill: true,
+    }
+  },
+};
