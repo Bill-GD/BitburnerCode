@@ -23,10 +23,9 @@ export async function main(ns) {
 
     if (file.match(/[M\/\:]/)) {
       const latest = file.split('\n').filter(line => line !== '').reverse()[0];
-      // const sample = '7/13/2023, 6:55:42 PM, lv, xp (readable xp)' + ', rate';
+      // const sample = '7/13/2023, 6:55:42 PM, lv, xp, readable xp' + ', rate';
 
       [time, level, xp] = latest.split(/,/).map(e => e.trim());
-      xp = xp.split(' ')[0];
 
       const oldTime = (new Date(time)).getTime();
       const timeDiff = (Date.now() - oldTime);
@@ -36,7 +35,7 @@ export async function main(ns) {
     }
 
     [currentLevel, currentXp] = [ns.getPlayer().skills.intelligence, ns.getPlayer().exp.intelligence];
-    const string = `${getTimeString(new Date())}, ${currentLevel}, ${currentXp} (${ns.formatNumber(currentXp, 3)})${rate}\n`;
+    const string = `${getTimeString(new Date())}, ${currentLevel}, ${currentXp}, ${ns.formatNumber(currentXp, 3)}${rate}\n`;
     ns.write(fileName, string, 'a');
     ns.print(`Logged at: ${getTimeString(new Date())}`);
     await ns.sleep(delayHour * 3600e3);
