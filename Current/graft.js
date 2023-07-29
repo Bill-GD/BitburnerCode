@@ -1,5 +1,7 @@
-/** Version 2.2.3
- * Removed some shortened functions
+/** Version 2.2.4
+ * Now check if an aug is included in the grafting list (colored blue)
+ * Re-implement grafting time to reduce RAM
+ * Added sorting option for augs with reputation gain
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -55,21 +57,21 @@ export async function main(ns) {
             'charisma',
             'blade',
             'hacknet',
+            'company', 'faction',
             'misc',
             'special',
           ]
         }
       );
 
+      const chosenAugs = ns.read('augs_to_graft.txt').split('\n');
+
       Object.entries(graftableAugs).forEach(([id, name]) => {
         const cost = graft.getAugmentationGraftPrice(name);
         const hasEnoughMoney = checkMoney(cost);
-        const checkColor = hasEnoughMoney ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`;
+        const checkColor = chosenAugs.includes(name) ? `${getColor('#00aaff')}` : hasEnoughMoney ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`;
         const info = `${checkColor} ${id}. ${colors.value}${name} - ${getColor(ns.ui.getTheme().money)}$${ns.formatNumber(cost, 3)}${colors.value} - ${checkColor}${hasEnoughMoney.toString().toUpperCase()}\n`;
-        if (sortOption === 'none') {
-          ns.print(info);
-          // ns.tprintf(info);
-        }
+        if (sortOption === 'none') ns.print(info);
         else if (sortOption === 'special' &&
           (name.includes('Neuroreceptor') || name.includes('nickofolas') || name.includes(`The Blade`)))
           ns.print(info);
@@ -148,7 +150,7 @@ export async function main(ns) {
 
       lineCount += 4;
 
-      const timeLine = ` Time: ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`;
+      const timeLine = ` Time: ${ns.tFormat(getAugGraftTime(chosenAug))}`;
       maxWidth = Math.max(maxWidth, timeLine.length);
       ns.printf(`\n${colors.section}${timeLine.replace(': ', `: ${colors.value}`)}`);
 
@@ -186,7 +188,7 @@ export async function main(ns) {
           const showTime = await ns.prompt('Show time?');
           if (showTime) {
             ns.printf(` Time to graft\n ${chosenAug} (ID=${id}, cost=$${ns.formatNumber(graft.getAugmentationGraftPrice(chosenAug), 1)}):`);
-            ns.printf(`  > ${ns.tFormat(graft.getAugmentationGraftTime(chosenAug))}`);
+            ns.printf(`  > ${ns.tFormat(getAugGraftTime(chosenAug))}`);
           }
           else
             ns.printf(` Currently grafting: ${chosenAug}`);
@@ -198,6 +200,13 @@ export async function main(ns) {
         ns.printf(`ERROR: Hasn't grafted prerequisites of ${chosenAug}`);
       ns.exit();
     }
+  }
+
+  function getAugGraftTime(augName) {
+    const antiLog = Math.max((Object.values(ns.singularity.getAugmentationStats(augName)).filter((x) => x !== 1)).reduce((p, c) => p + c), 1);
+    const time = (36e5 * Math.log2(antiLog) + 18e5) / 2;
+    const intBonus = 1 + ((3 * Math.pow(ns.getPlayer().skills.intelligence, 0.8)) / 600) / 3;
+    return time / intBonus;
   }
 
   function checkMisc(augName) {

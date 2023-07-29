@@ -1,5 +1,12 @@
-/** Version 2.6.3
- * Limits the RAM usage of 'graft.js' to minimal
+/** Version 2.6.4
+ * Log title is the currently grafting aug and notifies when finished grafting all augs
+ * Re-ordered the info to avoid hiding info when the tail is higher than screen height
+ * Removed time info
+ */
+/**
+ * ! https://github.com/bitburner-official/bitburner-src/blob/dev/src/Augmentation/Augmentations.ts#L82
+ * BigDsBigBrain -> "BigD's Big ... Brain": can't be obtained in-game, might need to edit save
+ * Significant stats boost
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -126,7 +133,6 @@ export async function main(ns) {
     default:
       ns.clearLog();
       let totalCost = 0;
-      let totalTime = 0;
       let list = '';
 
       ns.write(fileName, chosenAugNames.join('\n'), 'w');
@@ -134,7 +140,6 @@ export async function main(ns) {
       // calculates time & cost
       chosenAugNames.forEach((aug, index) => {
         totalCost += augGraftCost(aug);
-        totalTime += graftTime(aug);
         const augLine = `  > ${graftableAugs.indexOf(aug)}. ${aug} - s$${ns.formatNumber(augGraftCost(aug), 2)}`;
         maxWidth = Math.max(maxWidth, augLine.length);
         const listHeader = index === chosenAugNames.length - 1 ? `${listHeaders.lastChild}` : `${listHeaders.middleChild}`;
@@ -144,24 +149,13 @@ export async function main(ns) {
           .replace(' s', ` ${colors.section}`) + '\n';
       });
 
-      const currentWork = ns.singularity.getCurrentWork();
-      if (currentWork !== null && currentWork.type === 'GRAFTING')
-        totalTime += (graftTime(currentWork.augmentation) - (currentWork.cyclesWorked * 200));
-
       // process time info
-      const timeStart = new Date();
-      const timeEnd = new Date(timeStart.getTime() + totalTime);
       let generalInfo =
         ` ${colors.section}Info\n` +
         `  ${listHeaders.middleChild} Count: ${colors.value}${chosenAugNames.length}\n` +
-        `  ${listHeaders.middleChild} Cost:  ${colors.value}$${ns.formatNumber(totalCost, 3)}\n` +
-        `  ${listHeaders.middleChild} Time:  ${colors.value}${ns.tFormat(totalTime)}\n` +
-        `  ${listHeaders.middleChild} Start: ${colors.value}${timeStart.getDate()}/${timeStart.getMonth() + 1} ${timeStart.getHours() < 10 ? '0' : ''}${timeStart.getHours()}:${timeStart.getMinutes() < 10 ? '0' : ''}${timeStart.getMinutes()}\n` +
-        `  ${listHeaders.lastChild} End:   ${colors.value}${timeEnd.getDate()}/${timeEnd.getMonth() + 1} ${timeEnd.getHours() < 10 ? '0' : ''}${timeEnd.getHours()}:${timeEnd.getMinutes() < 10 ? '0' : ''}${timeEnd.getMinutes()}`;
+        `  ${listHeaders.lastChild} Cost:  ${colors.value}$${ns.formatNumber(totalCost, 3)}\n`;
 
-      ns.print(` ${colors.section}Augmentations\n` + `${list}\n${generalInfo}`);
-
-      maxWidth = Math.max(ns.tFormat(totalTime).length + 10, maxWidth);
+      ns.print(` ${colors.section}Augmentations\n${list}\n${generalInfo}`);
 
       if (!await ns.prompt('Start Grafting?')) break;
 
@@ -189,7 +183,7 @@ export async function main(ns) {
         }
         // avoid skipping aug -> lose money
         while (ns.singularity.getCurrentWork() !== null && ns.singularity.getCurrentWork().type === 'GRAFTING')
-          await ns.sleep(1e3);
+          await ns.sleep(100);
 
         let augList = '';
         chosenAugNames.forEach((aug, index) => {
@@ -206,7 +200,7 @@ export async function main(ns) {
             + '\n';
         });
 
-        ns.run('graft.js', { ramOverride: 29.1, preventDuplicates: true }, '--script', '--chosenAugName', aug, '--multiple');
+        ns.run('graft.js', { ramOverride: 25.35, preventDuplicates: true }, '--script', '--chosenAugName', aug, '--multiple');
         await ns.sleep(200);
 
         // while (currentTime < timeToGraft) {
@@ -225,7 +219,8 @@ export async function main(ns) {
         await ns.sleep(200);
       }
 
-      ns.print(`\n${getColor('#0099ff')} FINISHED GRAFTING`);
+      ns.print(`\n${getColor('#0099ff')}[${(new Date()).toLocaleTimeString()}] FINISHED GRAFTING`);
+      ns.setTitle(`FINISHED GRAFTING`);
       break;
   }
 
@@ -250,19 +245,20 @@ export async function main(ns) {
   function log(augList, generalInfo, aug, currentTime, timeToGraft) {
     ns.clearLog();
     let lineCount = 2 + augList.split('\n').length;
+    ns.setTitle(`${ns.formatPercent(currentTime / timeToGraft, 2)} - ` + aug);
+
+    ns.print(
+      ` ${colors.section}Grafting\n` +
+      `  ${listHeaders.middleChild} Name: ${colors.value}${aug}\n` +
+      `  ${listHeaders.lastChild} Progress: ${colors.value}${progressBar(currentTime, timeToGraft)}`
+    );
+    ns.print(generalInfo);
+
 
     ns.print(` ${colors.section}Augmentations\n`);
     ns.print(augList);
 
-    ns.print(
-      `\n ${colors.section}Grafting\n` +
-      `  ${listHeaders.middleChild} Name: ${colors.value}${aug}\n` +
-      `  ${listHeaders.lastChild} Progress: ${colors.value}${progressBar(currentTime, timeToGraft)}`
-    );
-
-    ns.print('\n' + generalInfo);
-
-    ns.resizeTail(Math.max(250, maxWidth * 10), 25 * (lineCount + 9) + 15);
+    ns.resizeTail(Math.max(250, maxWidth * 10), 25 * (lineCount + 5) + 1);
   }
 
   /** Re-organize the list of aug names. */
