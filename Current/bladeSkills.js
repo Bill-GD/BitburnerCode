@@ -1,9 +1,13 @@
-/** Version 1.1.1
- * Only upgrade Hyperdrive & Midas
+/** Version 1.1.2
+ * Added flag for automation: autoClose (close tail when exit)
  */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL'); ns.tail(); ns.clearLog();
+  const flagOptions = ns.flags([
+    ['autoClose', false],
+  ]);
+  ns.atExit(() => flagOptions.autoClose && ns.closeTail());
 
   const nodeSkillCost = currentBN !== 12 ? bnSkillCost[currentBN] : 1.02 ** parseInt(ns.read('BN_Level.txt'));
 
@@ -61,7 +65,7 @@ const bnSkillCost = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 2, 8: 1, 9: 1.2, 10
 
 const skills = [
   { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 },
-  { name: 'Hands of Midas', baseCost: 2, costInc: 2.5 },
+  // { name: 'Hands of Midas', baseCost: 2, costInc: 2.5 },
 ];
 const allSkills = skills.slice();
 
