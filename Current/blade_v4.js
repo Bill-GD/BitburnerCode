@@ -1,8 +1,8 @@
-/** Version 4.13
- * Now connects to Sleeves for Infiltration, Diplomacy and Contracts
- * Uses 'blade-sleeve.js' as the connector
- * Post-Blade: continuous Incite Violence while there's still bonus time left
- * Refactored chaos, action, black op handler
+/** Version 4.14
+ * Reworked logging
+ * - Only update changed data, keep unchanged data intact
+ * - Changed data -> Log data object -> Print to tail
+ * Updated progress bar
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -17,8 +17,6 @@ export async function main(ns) {
     header: getColor(ns.ui.getTheme().hp),
     value: getColor(),
   };
-
-  let checkedCity = false;
 
   try {
     ns.bladeburner.getSkillLevel(`Cloak`);
@@ -39,9 +37,23 @@ export async function main(ns) {
 
   let rankGain = [Infinity, 0];
 
+  log = {
+    ...log,
+    City: { Name: ns.bladeburner.getCity(), Population: ns.bladeburner.getCityEstimatedPopulation(ns.bladeburner.getCity()), Chaos: ns.bladeburner.getCityChaos(ns.bladeburner.getCity()), },
+  };
+  if (currentBlackOp) log['Black Op'] = { Name: currentBlackOp, Chance: successChance('blackop', currentBlackOp)[0], 'Required Rank': blackOpRanks[currentBlackOp], };
+
+  const leftoverAction = ns.bladeburner.getCurrentAction();
+  if (leftoverAction.type === 'BlackOp') {
+    log = {
+      ...log,
+      Action: { Name: leftoverAction.name, Type: 'blackop', Chance: successChance('blackop', leftoverAction.name)[0], Count: 1, Time: ns.bladeburner.getActionTime('blackop', leftoverAction.name), },
+      Rank: ns.bladeburner.getRank(), 'Skill Points': ns.bladeburner.getSkillPoints(),
+    };
+  }
   while (ns.bladeburner.getCurrentAction().type === 'BlackOp') {
-    logAction('BlackOp', ns.bladeburner.getCurrentAction().name);
-    await ns.sleep(1e3);
+    logAction();
+    await ns.sleep(500);
   }
 
   // main loop
@@ -75,7 +87,7 @@ export async function main(ns) {
         const count = postBlade
           ? actionCount('op', currentOp)
           : Math.min(actionCount('op', currentOp), Math.trunc(Math.random() * 7 + 13)); // 13-20
-        await performAction('op', currentOp, count);
+        if (checkWorkCount('op', currentOp)) await performAction('op', currentOp, count);
       }
     }
 
@@ -97,16 +109,12 @@ export async function main(ns) {
     await ns.sleep(1);
   }
 
-  function logAction(type, name, count = 1, maxCount = 1) {
+  function logAction() {
     const divider = ' -----------------------------------------------';
     ns.clearLog();
 
     const lines = [];
     const skillToPrint = getAllSkills();
-    const currentSP = ns.bladeburner.getSkillPoints();
-    const currentRank = ns.bladeburner.getRank();
-    const taskCount = actionCount(type, name);
-    const totalTime = ns.bladeburner.getActionTime(type, name);
 
     let maxSkillWidth = 12;
     skillToPrint.forEach(skill => {
@@ -115,20 +123,19 @@ export async function main(ns) {
     });
 
     lines.push(' h---------------==={ sCURRENT h}===---------------');
-    const task = `${name}` + (maxCount > 1 ? ` (${count} / ${maxCount})` : '');
-    lines.push(` s${fillWhitespaces((divider.length / 2) - (task.length / 2))}v${task}`);
-    type !== 'General' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(successChance(type, name)[0], 2)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${formatTime(ns.bladeburner.getActionCurrentTime())} / ${formatTime(totalTime)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(ns.bladeburner.getActionCurrentTime(), totalTime, 18)}`);
-    (taskCount !== Infinity && taskCount !== 1) && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${taskCount}`);
+    lines.push(` s${fillWhitespaces((divider.length / 2) - (log.Action.Name.length / 2))}v${log.Action.Name}`);
+    log.Action.Type !== 'gen' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.Action.Chance, 2)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${Math.round(ns.bladeburner.getActionCurrentTime() / 1e3)} / ${Math.round(log.Action.Time / 1e3)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(ns.bladeburner.getActionCurrentTime() / log.Action.Time, 8)}`);
+    (log.Action.Count !== Infinity && log.Action.Count !== 1) && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.Action.Count}`);
 
     lines.push(' h---------------==={ sSKILLS h}===----------------');
     const rankGainAvg = (rankGain[0] + rankGain[1]) / 2;
-    const spGainAvg = Math.trunc(rankGainAvg / 3) + ((currentRank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
+    const spGainAvg = Math.trunc(rankGainAvg / 3) + ((log.Rank % 3) + (rankGainAvg % 3) >= 3 ? 1 : 0);
 
-    lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(currentRank, currentRank >= 1e6 ? 3 : 0, 1e6)}` +
+    lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(log.Rank, log.Rank >= 1e6 ? 3 : 0, 1e6)}` +
       `${rankGainAvg > 0 && rankGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(rankGainAvg, rankGainAvg >= 1e6 ? 1 : 0, 1e6)})` : ''}`);
-    lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(currentSP, currentSP > 1e6 ? 3 : 0, 1e6)}` +
+    lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(log["Skill Points"], log["Skill Points"] > 1e6 ? 3 : 0, 1e6)}` +
       `${spGainAvg > 0 && spGainAvg !== Infinity ? ` (+ ~${ns.formatNumber(Math.trunc(spGainAvg), 3, 1e6)})` : ''}`);
 
     skillToPrint.forEach(skill => {
@@ -137,35 +144,31 @@ export async function main(ns) {
         const sp = ns.bladeburner.getSkillUpgradeCost(skill.name);
         lines.push(
           `${fillWhitespaces(divider.length / 3 - (skill.name.length) + 2)} h${skill.name}: v${ns.formatNumber(ns.bladeburner.getSkillLevel(skill.name), 3, 1e6)} - ` +
-          (ns.bladeburner.getSkillPoints() >= sp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + `${ns.formatNumber(sp, 3, 1e6)}`
+          (log["Skill Points"] >= sp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + `${ns.formatNumber(sp, 3, 1e6)}`
         );
       }
     });
 
     if (!postBlade) {
-      const rankMet = currentRank > blackOpRanks[currentBlackOp];
+      const rankMet = log.Rank > blackOpRanks[currentBlackOp];
       lines.push(' h--------------==={ sBLACK OP h}===---------------');
-      const chance = successChance('blackop', currentBlackOp)[0];
       lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp.substring(10)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(chance, 2)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${log["Black Op"].Chance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log["Black Op"].Chance, 2)}`);
       lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hRank: v${ns.formatNumber(blackOpRanks[currentBlackOp], 3)} -` +
-        ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(currentRank / blackOpRanks[currentBlackOp])}`);
+        ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log.Rank / blackOpRanks[currentBlackOp])}`);
     }
     else {
-      const city = ns.bladeburner.getCity();
       lines.push(' h----------------==={ sCITY h}===-----------------');
-      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${city}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(ns.bladeburner.getCityEstimatedPopulation(city), 3)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(ns.bladeburner.getCityChaos(city), 3)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${log.City.Name}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(log.City.Population, 3)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(log.City.Chaos, 3)}`);
 
       lines.push(' h------------==={ sASSASSINATION h}===------------');
-      const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
-      const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination');
-      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hLevel: v${maxLevel}`);
-      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(successChance('op', 'Assassination')[0], 2)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 - 3)} hSuccesses: v${ns.formatNumber(successes, 3, 1e6)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4)} hNeeded: v${ns.formatNumber(Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - successes, 3, 1e6)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${actionCount('op', 'Assassination')}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hLevel: v${log.Assassination.Level}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.Assassination.Chance, 2)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 - 3)} hSuccesses: v${ns.formatNumber(log.Assassination.Successes, 3, 1e6)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hNeeded: v${ns.formatNumber(log.Assassination.Needed, 3, 1e6)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.Assassination.Count}`);
     }
 
     ns.print(lines
@@ -177,22 +180,75 @@ export async function main(ns) {
     ns.resizeTail((divider.length - 2) * 10, lines.length * 25 + 25);
   }
 
+  /** * Starts the specified action a certain amount of time and write to log.
+   ** Also check stamina beforehand.
+   * @param {string} type Type of the action.
+   * @param {string} action Name of the action.
+   * @param {number} count The action count. Defaults to ```1```.
+   * @param {boolean} stamina Whether to check stamina. Set to ```false``` to avoid stamina check (and possible infinite loop). Defaults to ```true```.
+   * @param {boolean} blackOp Whether to check for Black Op. Set to ```false``` to disable Black Op (why?). Defaults to ```true```. */
+  async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
+    const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination'),
+      maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
+    log = {
+      ...log, Action: { ...log.Action, Name: action, Type: type },
+      Assassination: { Chance: successChance('op', 'Assassination')[0], Level: maxLevel, Successes: successes, Needed: Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - successes, Count: actionCount('op', 'Assassination'), },
+    };
+
+    if (ns.bladeburner.startAction(type, action)) {
+      for (let i = 1; i <= count; i++) {
+        log = {
+          ...log, Rank: ns.bladeburner.getRank(), 'Skill Points': ns.bladeburner.getSkillPoints(),
+          Action: { ...log.Action, Chance: successChance(type, action)[0], Count: actionCount(type, action), Time: ns.bladeburner.getActionTime(type, action), },
+        };
+        if (action === 'Assassination') {
+          const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination'),
+            maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
+          log = { ...log, Assassination: { Chance: successChance('op', 'Assassination')[0], Level: maxLevel, Successes: successes, Needed: Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - successes, Count: actionCount('op', 'Assassination'), }, };
+        }
+
+        if (actionCount(type, action) <= 0) break;
+
+        rankGain = [Infinity, 0];
+        for (let j = 0; j < 30; j++) {
+          const repGain = ns.bladeburner.getActionRepGain(type, action),
+            rank = repGain + (Math.random() * (repGain * 0.2) - repGain * 0.1);
+          rankGain[0] = Math.min(rank, rankGain[0]);
+          rankGain[1] = Math.max(rank, rankGain[1]);
+        }
+        if (rankGain[0] === Infinity) rankGain[0] = 0;
+
+        if (!postBlade) {
+          stamina && await checkStamina();
+          blackOp && await checkBlackOps();
+        }
+
+        const title = `R:${ns.formatNumber(log.Rank, log.Rank >= 1e6 ? 2 : 0, 1e6)} | ` +
+          (postBlade ? ' ' : `D:${ns.formatPercent(successChance('blackop', 'Operation Daedalus')[0], 0)} | `) +
+          `${type !== 'blackop' ? action : 'Op. ' + action.substring(10)}`
+        ns.setTitle(title);
+
+        let current = ns.bladeburner.getActionCurrentTime();
+
+        // ns.tprint(log);
+        while (current <= log.Action.Time) {
+          logAction();
+          await ns.sleep(500);
+          const bonus = ns.bladeburner.getBonusTime();
+          current = ns.bladeburner.getActionCurrentTime();
+          if (ns.bladeburner.getCurrentAction().type === 'Idle') break;
+          if ((bonus <= 1e3 && current === 0) || (bonus > 1e3 && current < 5e3)) break;
+        }
+        await upgradeSkills();
+      }
+    }
+    ns.bladeburner.stopBladeburnerAction();
+  }
+
   /** Calculates the best city based on the population, chaos, player stats and Bladeburner skills (from source code). */
   function checkCity() {
-    if (cities.every(c => ns.bladeburner.getCityEstimatedPopulation(c)) <= 0) {
-      if (checkedCity) return;
-      const cityData =
-        Object.values(JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bladeburner.data.cities)
-          .map(c => c.data)
-          .sort((a, b) => b.pop - a.pop);
-      ns.bladeburner.switchCity(cityData[0].name);
-      checkedCity = true;
-    }
-    else {
-      const citiesSortedPop = cities.sort((a, b) => ns.bladeburner.getCityEstimatedPopulation(b) - ns.bladeburner.getCityEstimatedPopulation(a));
-      if (citiesSortedPop.length > 0) ns.bladeburner.switchCity(citiesSortedPop[0]);
-      checkedCity = false;
-    }
+    const citiesSortedPop = cities.sort((a, b) => ns.bladeburner.getCityEstimatedPopulation(b) - ns.bladeburner.getCityEstimatedPopulation(a));
+    if (citiesSortedPop.length > 0) ns.bladeburner.switchCity(citiesSortedPop[0]);
   }
 
   /** If success chance difference is more than ```5%``` starts increasing accuracy. */
@@ -210,56 +266,6 @@ export async function main(ns) {
 
       else await performAction('gen', 'Field Analysis', 1, false, false);
     }
-  }
-
-  /** * Starts the specified action a certain amount of time and write to log.
-   ** Also check stamina beforehand.
-   * @param {string} type Type of the action.
-   * @param {string} action Name of the action.
-   * @param {number} count The action count. Defaults to ```1```.
-   * @param {boolean} stamina Whether to check stamina. Set to ```false``` to avoid stamina check (and possible infinite loop). Defaults to ```true```.
-   * @param {boolean} blackOp Whether to check for Black Op. Set to ```false``` to disable Black Op (why?). Defaults to ```true```. */
-  async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
-    if (ns.bladeburner.startAction(type, action)) {
-      for (let i = 1; i <= count; i++) {
-        if (actionCount(type, action) <= 0) break;
-
-        rankGain = [Infinity, 0];
-        for (let j = 0; j < 30; j++) {
-          const repGain = ns.bladeburner.getActionRepGain(type, action);
-          const rank = repGain + (Math.random() * (repGain * 0.2) - repGain * 0.1);
-          rankGain[0] = Math.min(rank, rankGain[0]);
-          rankGain[1] = Math.max(rank, rankGain[1]);
-        }
-        if (rankGain[0] === Infinity) rankGain[0] = 0;
-
-        if (!postBlade) {
-          stamina && await checkStamina();
-          blackOp && await checkBlackOps();
-        }
-
-        const rank = ns.bladeburner.getRank();
-        const title = `R:${ns.formatNumber(rank, rank >= 1e6 ? 2 : 0, 1e6)} | ` +
-          (postBlade ? ' ' : `D:${ns.formatPercent(successChance('blackop', 'Operation Daedalus')[0], 0)} | `) +
-          `${count > 1 ? i + '/' + count + ' ' : ''}${type !== 'blackop' ? action : 'Op. ' + action.substring(10)}`
-        ns.setTitle(title);
-
-        const totalTime = ns.bladeburner.getActionTime(type, action);
-        let current = ns.bladeburner.getActionCurrentTime();
-
-        while (current <= totalTime) {
-          logAction(ns.bladeburner.getCurrentAction().type, ns.bladeburner.getCurrentAction().name, i, count);
-          await ns.sleep(1e3);
-          const bonus = ns.bladeburner.getBonusTime();
-          current = ns.bladeburner.getActionCurrentTime();
-          if (ns.bladeburner.getCurrentAction().type === 'Idle') break;
-          if (bonus <= 1e3 && current === 0) break;
-          if (bonus > 1e3 && current < 5e3) break;
-        }
-        await upgradeSkills();
-      }
-    }
-    ns.bladeburner.stopBladeburnerAction();
   }
 
   /** Regen if stamina is less than half. Regen until full. */
@@ -332,14 +338,17 @@ export async function main(ns) {
       const nextBlackOp = getCurrentBlackOp();
       if (nextBlackOp !== currentBlackOp) {
         ns.toast(`Successfully completed ${currentBlackOp}`, 'success', 5e3);
-        if (currentBlackOp.includes('Daedalus')) {
+        if (!nextBlackOp) {
           postBlade = true;
           ns.alert(`!  Operation Daedalus is accomplished  !\nDestroy this BitNode when you're ready`);
           // Log the time of the Daedalus completion to terminal
           // Only if Daedalus is actually performed, not just finished
           ns.tprintf(`\n(!) Finished Daedalus at: ${(new Date()).toLocaleString()}`, 0);
         }
-        else currentBlackOp = nextBlackOp;
+        else {
+          currentBlackOp = nextBlackOp;
+          log['Black Op'] = { Name: currentBlackOp, Chance: successChance('blackop', currentBlackOp)[0], 'Required Rank': blackOpRanks[currentBlackOp], };
+        }
       }
     }
   }
@@ -358,7 +367,7 @@ export async function main(ns) {
   }
 
   /**
-   * Chooses the best operation. Forces ```Assassination``` if is in Post-Blade.
+   * Chooses the best operation. Always return ```Assassination``` if is in Post-Blade.
    * @returns The best operation that is currently available.
    */
   function getBestOp() {
@@ -528,25 +537,14 @@ function getColor(colorHex = '#ffffff') {
   return `\u001b[38;2;${r};${g};${b}m`;
 }
 
-/** Convert time in milliseconds to ```string``` representation.
- * @param {number} time The time in milliseconds
- * @return {string} The formatted time: ```mm:ss``` */
-function formatTime(time = 0) {
-  let min = Math.trunc(time / 6e4);
-  let sec = Math.trunc(time % 6e4) / 1e3;
-  sec = sec < 10 ? '0' + sec : sec;
-  min = min < 10 ? '0' + min : min;
-  return `${min}:${sec}`;
-}
-
 /** Return a ```string``` representation of progress as a bar.
- * @param {number} currentProgress The current progress.
- * @param {number} fullProgress Equals to ```100%``` of the progress.
+ * @param {number} progress The current progress.
  * @param {number} maxChar The number of characters the progress bar should display, excluding the enclosing characters.
  * @returns The progress bar as a ```string```. */
-function progressBar(currentProgress, fullProgress, maxChar = 10) {
-  const progress = Math.trunc(currentProgress / (fullProgress / maxChar));
-  return `\u251c${'\u2588'.repeat(progress)}${'\u2500'.repeat(Math.max(0, maxChar - progress))}\u2524`;
+function progressBar(progress, maxChar = 10) {
+  progress = Math.min(1, Math.max(progress, 0));
+  const fullCount = Math.round(maxChar * progress), full = fullCount <= Math.round(0.35 * maxChar) ? '🟥' : fullCount <= Math.round(0.9 * maxChar) ? '🟨' : '🟩';
+  return `[${full.repeat(fullCount)}${'🔳'.repeat(Math.max(0, maxChar - fullCount))}]`;
 }
 
 const fillWhitespaces = (count = 0) => ' '.repeat(count);
@@ -565,7 +563,15 @@ const sleeveControl = {
   runContract: false,
   runDiplomacy: false,
   runInfiltrate: false,
-}
+};
+
+let log = {
+  Action: { Name: '', Type: '', Chance: 0, Count: 0, Time: 0, },
+  Rank: 0, 'Skill Points': 0,
+  City: { Name: '', Population: 0, Chaos: 0, },
+  'Black Op': { Name: '', Chance: 0, 'Required Rank': 0, },
+  Assassination: { Chance: 0, Level: 0, Successes: 0, Needed: 0, Count: 0, },
+};
 
 const cities = ['Aevum', 'Chongqing', 'Sector-12', 'New Tokyo', 'Ishima', 'Volhaven'];
 const contracts = ['Retirement', 'Bounty Hunter', 'Tracking'];
