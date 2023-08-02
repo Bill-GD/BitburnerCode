@@ -1,17 +1,16 @@
-/** Version 1.0.2
- * Added flag for automation: autoClose (close tail when exit)
- * Refactored main sleeve loop
- * Partially connects to 'blade-sleeve.js'
- * Shows current contract counts
+/** Version 1.1
+ * Now use actual success chance for sleeves (increases RAM by a lot)
+ * Better log (shows contract chances, other tasks)
  */
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL'); ns.tail(); ns.clearLog();
   const flagOptions = ns.flags([
     ['autoClose', false],
+    ['avoidOverlap', false],
   ]);
 
-  ns.run('bladeSkills.js', { preventDuplicates: true }, flagOptions.autoClose ? '--autoClose' : '');
+  ns.run('bladeSkills.js', { preventDuplicates: true }, flagOptions.autoClose ? '--autoClose' : '', flagOptions.avoidOverlap ? '--avoidOverlap' : '');
   ns.atExit(() => {
     flagOptions.autoClose && ns.closeTail()
     for (let i = 0; i < 8; i++) {
@@ -19,7 +18,7 @@ export async function main(ns) {
       if (task && task.type === 'BLADEBURNER' && task.actionType === 'Contracts')
         ns.sleeve.setToIdle(i);
     }
-    ns.kill('bladeSkills.js', 'home', flagOptions.autoClose ? '--autoClose' : '');
+    ns.kill('bladeSkills.js', 'home', flagOptions.autoClose ? '--autoClose' : '', flagOptions.avoidOverlap ? '--avoidOverlap' : '');
   });
 
   const [action, contracts] = ['Take on contracts', ['Bounty Hunter', 'Retirement', 'Tracking']];
@@ -40,17 +39,21 @@ export async function main(ns) {
     });
 
     for (const sleeve of allSleeves) {
-      if (sleeve.info.shock > 0) continue;
+      if (sleeve.info.shock > 0) {
+        ns.sleeve.setToShockRecovery(sleeve.id);
+        continue;
+      }
       const task = ns.sleeve.getTask(sleeve.id);
       if (task) {
         if (task.type === 'BLADEBURNER' && task.actionType === 'Contracts') {
           // if contract chance is less than 100%, stop immediately
-          if (ns.bladeburner.getActionEstimatedSuccessChance('contract', task.actionName)[0] < 1
+          if (getActionChance('contract', task.actionName, sleeve.id) < 1
             || sleeve.info.storedCycles < 5
             || task.cyclesNeeded - task.cyclesWorked > sleeve.info.storedCycles) {
             conCopy.push(task.actionName);
             ns.sleeve.setToIdle(sleeve.id);
           }
+          else continue;
         }
         // if sleeve is doing anything else and stored cycles exhausted, stop immediately
         else if (sleeve.info.storedCycles < 5) ns.sleeve.setToIdle(sleeve.id);
@@ -58,25 +61,142 @@ export async function main(ns) {
       if (!ns.sleeve.getTask(sleeve.id) && sleeve.info.storedCycles < 50) continue;
       if (conCopy.length <= 0) continue;
       // * conCopy could contain undefined value ?
-      if (ns.bladeburner.getActionEstimatedSuccessChance('contract', conCopy[0])[0] < 1) continue;
+      if (getActionChance('contract', conCopy[0], sleeve.id) < 1) continue;
 
       ns.sleeve.setToBladeburnerAction(sleeve.id, action, conCopy[0]);
       conCopy.splice(0, 1);
     }
     logTask();
-    if (allSleeves.every(s => !ns.sleeve.getTask(s.id)) || contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0))
+    if (allSleeves.every(s => !ns.sleeve.getTask(s.id) || contracts.every(con => getActionChance('contract', con, s.id) < 1))
+      || contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0))
       ns.write('blade-sleeve.txt', JSON.stringify({ runContract: false, runDiplomacy: false, runInfiltrate: true, }), 'w');
     await ns.sleep(200);
   }
 
   function logTask() {
     ns.clearLog();
-    contracts.forEach(con => ns.print(` ${con}: ${ns.formatNumber(ns.bladeburner.getActionCountRemaining('contract', con), 3)} - ${ns.formatPercent(ns.bladeburner.getActionEstimatedSuccessChance('contract', con)[0], 2)}`));
+    contracts.forEach(con => ns.print(` ${con}: ${ns.formatNumber(ns.bladeburner.getActionCountRemaining('contract', con), 3)}`));
     for (let id = 0; id < 8; id++) {
       let task = ns.sleeve.getTask(id);
-      task = task ? task.actionName : `Idle`;
-      ns.print(` ${id}: ${task} - ${ns.formatNumber(ns.sleeve.getSleeve(id).storedCycles, 3, 1e6)} - int ${ns.formatNumber(ns.sleeve.getSleeve(id).skills.intelligence, 3, 1e6)}`);
+      if (!task) task = `Idle`;
+      else switch (task.type.toLowerCase()) {
+        case 'bladeburner':
+          task = task.actionName;
+          break;
+        case 'recovery':
+          task = `Recovery (${ns.formatNumber(ns.sleeve.getSleeve(id).shock, 3)})`;
+          break;
+        case 'crime':
+          task = task.crimeType;
+          break;
+        default:
+          task = task.type[0] + task.type.substring(1).toLowerCase();
+          break;
+      }
+      ns.print(` ${id}: ┌ int ${ns.formatNumber(ns.sleeve.getSleeve(id).skills.intelligence, 3, 1e6)}`);
+      ns.print(`    ├ ${Object.keys(actions).map(con => `${con.charAt(0)}: ${ns.formatPercent(getActionChance('contract', con), 2)}`).join(', ')}`);
+      ns.print(`    └ ${task} - ${ns.formatNumber(ns.sleeve.getSleeve(id).storedCycles, 3, 1e6)}`);
     }
-    ns.resizeTail(400, 11 * 25 + 25);
+    ns.resizeTail(450, 27 * 25 + 10);
+  }
+
+  function getActionChance(type, actionName, sleeveId = 0, city = ns.bladeburner.getCity()) {
+    if (type.toLowerCase() !== 'contract' || !cities.includes(city)) return;
+
+    const action = actions[actionName];
+
+    let difficulty = action.baseDifficulty * Math.pow(action.difficultyFac, ns.bladeburner.getActionMaxLevel(type.toLowerCase(), actionName) - 1);
+    let competence = 0;
+
+    for (const stat of Object.keys(action.weights)) {
+      if (Object.hasOwn(action.weights, stat)) {
+        const playerStatLvl = queryStatFromString(stat); // sleeve.getSleeve(sleeveId).skills
+        const key = 'eff' + stat.charAt(0).toUpperCase() + stat.slice(1);
+        let effMultiplier = getSkillMults(key);
+        if (effMultiplier === null) effMultiplier = 1;
+        competence += action.weights[stat] * Math.pow(effMultiplier * playerStatLvl, action.decays[stat]);
+      }
+    }
+    competence *= calculateIntelligenceBonus(ns.sleeve.getSleeve(sleeveId).skills.intelligence, 0.75);
+
+    competence *= getChaosCompetencePenalty(city);
+    difficulty *= getChaosDifficultyBonus(city);
+
+    competence *= getSkillMults('successChanceAll');
+
+    competence *= getSkillMults('successChanceContract');
+
+    if (action.isStealth) competence *= getSkillMults('successChanceStealth');
+    if (action.isKill) competence *= getSkillMults('successChanceKill');
+
+    competence *= ns.sleeve.getSleeve(sleeveId).mults.bladeburner_success_chance;
+
+    return competence / difficulty;
+  }
+
+  function queryStatFromString(str, sleeveId = 0) {
+    const tempStr = str.toLowerCase();
+    if (tempStr.includes('hack')) return ns.sleeve.getSleeve(sleeveId).skills.hacking;
+    if (tempStr.includes('str')) return ns.sleeve.getSleeve(sleeveId).skills.strength;
+    if (tempStr.includes('def')) return ns.sleeve.getSleeve(sleeveId).skills.defense;
+    if (tempStr.includes('dex')) return ns.sleeve.getSleeve(sleeveId).skills.dexterity;
+    if (tempStr.includes('agi')) return ns.sleeve.getSleeve(sleeveId).skills.agility;
+    if (tempStr.includes('cha')) return ns.sleeve.getSleeve(sleeveId).skills.charisma;
+    if (tempStr.includes('int')) return ns.sleeve.getSleeve(sleeveId).skills.intelligence;
+  }
+
+  function getSkillMults(str) {
+    if (str.includes('Str') || str.includes('Def')) return 1 + ns.bladeburner.getSkillLevel('Reaper') * 0.02;
+    if (str.includes('Dex') || str.includes('Agi')) return 1 + (ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04);
+    if (str.includes('ChanceAll')) return 1 + ns.bladeburner.getSkillLevel(`Blade's Intuition`) * 0.03;
+    if (str.includes('ChanceStealth')) return 1 + ns.bladeburner.getSkillLevel(`Cloak`) * 0.055;
+    if (str.includes('ChanceKill')) return 1 + ns.bladeburner.getSkillLevel(`Short-Circuit`) * 0.055;
+    if (str.includes('ChanceContract')) return 1 + ns.bladeburner.getSkillLevel(`Tracer`) * 0.04;
+    return 1;
+  }
+
+  function calculateIntelligenceBonus(intelligence, weight = 1) {
+    return 1 + (weight * Math.pow(intelligence, 0.8)) / 600;
+  }
+
+  function getChaosCompetencePenalty(city) {
+    return Math.pow(ns.bladeburner.getCityEstimatedPopulation(city) / 1e9, 0.7);
+  }
+
+  function getChaosDifficultyBonus(city) {
+    const chaos = ns.bladeburner.getCityChaos(city);
+    if (chaos > 50) {
+      const diff = 1 + (chaos - 50);
+      const mult = Math.pow(diff, 0.5);
+      return mult;
+    }
+    return 1;
   }
 }
+const cities = ['Aevum', 'Chongqing', 'Sector-12', 'New Tokyo', 'Ishima', 'Volhaven'];
+const actions = {
+  Tracking: {
+    name: "Tracking",
+    baseDifficulty: 125,
+    difficultyFac: 1.02,
+    weights: { hack: 0, str: 0.05, def: 0.05, dex: 0.35, agi: 0.35, cha: 0.1, int: 0.05, },
+    decays: { hack: 0, str: 0.91, def: 0.91, dex: 0.91, agi: 0.91, cha: 0.9, int: 1, },
+    isStealth: true,
+  },
+  'Bounty Hunter': {
+    name: "Bounty Hunter",
+    baseDifficulty: 250,
+    difficultyFac: 1.04,
+    weights: { hack: 0, str: 0.15, def: 0.15, dex: 0.25, agi: 0.25, cha: 0.1, int: 0.1, },
+    decays: { hack: 0, str: 0.91, def: 0.91, dex: 0.91, agi: 0.91, cha: 0.8, int: 0.9, },
+    isKill: true,
+  },
+  Retirement: {
+    name: "Retirement",
+    baseDifficulty: 200,
+    difficultyFac: 1.03,
+    weights: { hack: 0, str: 0.2, def: 0.2, dex: 0.2, agi: 0.2, cha: 0.1, int: 0.1, },
+    decays: { hack: 0, str: 0.91, def: 0.91, dex: 0.91, agi: 0.91, cha: 0.8, int: 0.9, },
+    isKill: true,
+  }
+};

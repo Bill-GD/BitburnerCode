@@ -6,8 +6,11 @@ export async function main(ns) {
   ns.disableLog('ALL'); ns.tail(); ns.clearLog();
   const flagOptions = ns.flags([
     ['autoClose', false],
+    ['avoidOverlap', false],
   ]);
   ns.atExit(() => flagOptions.autoClose && ns.closeTail());
+
+  if (flagOptions.avoidOverlap) ns.moveTail(850, 250);
 
   const nodeSkillCost = currentBN !== 12 ? bnSkillCost[currentBN] : 1.02 ** parseInt(ns.read('BN_Level.txt'));
 

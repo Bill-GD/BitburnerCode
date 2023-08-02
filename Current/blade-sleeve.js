@@ -3,7 +3,7 @@ export async function main(ns) {
   ns.disableLog('ALL'); ns.tail();
   while (1) {
     const toggles = JSON.parse(ns.read('blade-sleeve.txt'));
-    checkToggle(toggles.runContract, 'sleeveContracts.js', ['--autoClose']);
+    checkToggle(toggles.runContract, 'sleeveContracts.js', ['--autoClose', '--avoidOverlap']);
     checkToggle(toggles.runDiplomacy, 'sleevePresets.js', ['--autoClose', '--script', '--preset', 'Diplomacy']);
     checkToggle(toggles.runInfiltrate, 'sleevePresets.js', ['--autoClose', '--script', '--preset', 'Infiltrate']);
 
