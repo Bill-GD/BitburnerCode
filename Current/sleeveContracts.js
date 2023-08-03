@@ -1,6 +1,7 @@
-/** Version 1.1
- * Now use actual success chance for sleeves (increases RAM by a lot)
- * Better log (shows contract chances, other tasks)
+/** Version 1.1.1
+ * Highlight sleeves that are taking on contract
+ * Improved the prevention of taking contracts with <100% chance
+ * - Exits as soon as a contract of any sleeve has <100% chance
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -37,6 +38,11 @@ export async function main(ns) {
       if (task.type === 'BLADEBURNER' && task.actionType === 'Contracts')
         conCopy.splice(conCopy.indexOf(task.actionName), 1);
     });
+    // avoid failing contracts (builds up shock -> bad)
+    if (allSleeves.filter(s => contracts.filter(con => getActionChance('contract', con, s.id) < 1).length > 0).length > 0) {
+      ns.write('blade-sleeve.txt', JSON.stringify({ runContract: false, runDiplomacy: true, runInfiltrate: false, }), 'w');
+      ns.exit();
+    }
 
     for (const sleeve of allSleeves) {
       if (sleeve.info.shock > 0) {
@@ -67,8 +73,7 @@ export async function main(ns) {
       conCopy.splice(0, 1);
     }
     logTask();
-    if (allSleeves.every(s => !ns.sleeve.getTask(s.id) || contracts.every(con => getActionChance('contract', con, s.id) < 1))
-      || contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0))
+    if (allSleeves.every(s => !ns.sleeve.getTask(s.id)) || contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0))
       ns.write('blade-sleeve.txt', JSON.stringify({ runContract: false, runDiplomacy: false, runInfiltrate: true, }), 'w');
     await ns.sleep(200);
   }
@@ -81,7 +86,7 @@ export async function main(ns) {
       if (!task) task = `Idle`;
       else switch (task.type.toLowerCase()) {
         case 'bladeburner':
-          task = task.actionName;
+          task = '\x1b[38;2;255;255;255m' + task.actionName + '\x1b[0m';
           break;
         case 'recovery':
           task = `Recovery (${ns.formatNumber(ns.sleeve.getSleeve(id).shock, 3)})`;
