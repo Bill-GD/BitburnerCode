@@ -2,28 +2,28 @@
 export async function main(ns) {
   ns.disableLog('ALL'); ns.clearLog();
   const fileName = 'int-log.txt',
-    delayHour = 4; // time between each log entry (in hours)
+    delayHour = 24; // time between each log entry (in hours)
   const file = ns.read(fileName);
   if (file.match(/[M\/\:]/)) {
     const latest = file.split('\n').filter(line => line !== '').reverse()[0],
-      time = latest.split(/,/).map(e => e.trim())[0],
+      time = latest.split(/,/)[0].trim(),
       oldTime = (new Date(time)).getTime();
     if (Date.now() - oldTime < delayHour * 3600e3) {
-      const timeToWait = delayHour * 3600e3 - Date.now() + oldTime;
-      ns.print('Waiting for: ', ns.tFormat(timeToWait));
+      const nextLogTime = delayHour * 3600e3 + oldTime, timeToWait = nextLogTime - Date.now();
+      ns.print('Waiting until: ', getTimeString(nextLogTime));
       await ns.sleep(timeToWait);
     }
   }
 
   while (1) {
     const file = ns.read(fileName);
-    let [time, level, xp, rate] = ['', '', '', '', '', ''];
+    let [time, level, xp, rate] = ['', '', '', ''];
 
     let [currentLevel, currentXp] = [ns.getPlayer().skills.intelligence, ns.getPlayer().exp.intelligence];
 
     if (file.match(/[M\/\:]/)) {
       const latest = file.split('\n').filter(line => line !== '').reverse()[0];
-      // const sample = '7/13/2023, 6:55:42 PM, lv, xp, readable xp' + ', rate';
+      // const sample = '7/13/2023, 6:55:42 PM, lv, xp' + ', rate';
 
       [time, level, xp] = latest.split(/,/).map(e => e.trim());
 
@@ -35,7 +35,7 @@ export async function main(ns) {
     }
 
     [currentLevel, currentXp] = [ns.getPlayer().skills.intelligence, ns.getPlayer().exp.intelligence];
-    const string = `${getTimeString(new Date())}, ${currentLevel}, ${currentXp}, ${ns.formatNumber(currentXp, 3)}${rate}\n`;
+    const string = `${getTimeString(new Date())}, ${currentLevel}, ${currentXp}${rate}\n`;
     ns.write(fileName, string, 'a');
     ns.print(`Logged at: ${getTimeString(new Date())}`);
     await ns.sleep(delayHour * 3600e3);
