@@ -1,5 +1,7 @@
-/** Version 1.1.2
- * Added flag for automation: autoClose (close tail when exit)
+/** Version 1.2
+ * Added more flags: extra, leftover
+ * - extra: Allows more skills
+ * - leftover: Exit as soon as SP is insufficient (Spend leftover SP on low-level skills)
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -7,11 +9,26 @@ export async function main(ns) {
   const flagOptions = ns.flags([
     ['autoClose', false],
     ['avoidOverlap', false],
+    ['extra', false],
+    ['leftover', false],
   ]);
   ns.atExit(() => flagOptions.autoClose && ns.closeTail());
 
-  if (flagOptions.avoidOverlap) ns.moveTail(850, 250);
+  const skills = [
+    { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 },
+    // { name: 'Hands of Midas', baseCost: 2, costInc: 2.5 },
+  ];
 
+  if (flagOptions.avoidOverlap) ns.moveTail(850, 250);
+  if (flagOptions.extra) {
+    if (await ns.prompt(`Add 'Blade's Intuition' for all success chance?`)) skills.push({ name: `Blade's Intuition`, baseCost: 3, costInc: 2.1 });
+    if (await ns.prompt(`Add 'Short-Circuit' for retirement success chance?`)) skills.push({ name: 'Short-Circuit', baseCost: 2, costInc: 2.1 });
+    if (await ns.prompt(`Add 'Digital Observer' for Operations success chance?`)) skills.push({ name: 'Digital Observer', baseCost: 2, costInc: 2.1 });
+    if (await ns.prompt(`Add 'Tracer' for Contracts success chance?`)) skills.push({ name: 'Tracer', baseCost: 2, costInc: 2.1 });
+    if (await ns.prompt(`Add 'Hands of Midas' for Contracts money?`)) skills.push({ name: 'Hands of Midas', baseCost: 2, costInc: 2.5 });
+  }
+
+  const allSkills = skills.slice();
   const nodeSkillCost = currentBN !== 12 ? bnSkillCost[currentBN] : 1.02 ** parseInt(ns.read('BN_Level.txt'));
 
   while (true) {
@@ -34,6 +51,7 @@ export async function main(ns) {
       count = calculateLevels(allSkills[0], ns.bladeburner.getSkillLevel(allSkills[0].name), sp);
       await ns.sleep(0);
     }
+    if (flagOptions.leftover) ns.exit();
     await ns.sleep(1);
   }
 
@@ -66,11 +84,6 @@ export async function main(ns) {
 const currentBN = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bitNodeN;
 const bnSkillCost = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 2, 8: 1, 9: 1.2, 10: 1, 11: 1, 13: 2 };
 
-const skills = [
-  { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 },
-  // { name: 'Hands of Midas', baseCost: 2, costInc: 2.5 },
-];
-const allSkills = skills.slice();
 
 function getColor(colorHex = '#ffffff') {
   if (!colorHex.includes('#')) return '\u001b[38;2;255;255;255m';
