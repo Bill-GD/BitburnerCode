@@ -1,11 +1,7 @@
-/** Version 4.15
- * Added some missing info updates, removed unnecessary info from the log object
- * Redesigned progress bar
- * Recreated 2 Bladeburner API functions: bladeburner.getActionRepGain, bladeburner.getActionEstimatedSuccessChance
- * Added header note
- * Added necessary info of all non-general tasks (excluding Raid)
- * Reworked checkAccuracy function, is now checkPopAccuracy: uses actual population of cities
- * Update functions doc
+/** Version 4.15.1
+ * Reduced RAM:
+ * - getActionRepGain renamed to getActionRankGain (avoid conflict)
+ * - Removed bladeburner.stopBladeburnerAction
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -189,7 +185,7 @@ export async function main(ns) {
           };
         }
 
-        rankGain = getActionRepGain(type, action);
+        rankGain = getActionRankGain(type, action);
         spGain = Math.trunc(rankGain / 3) + ((log.Rank % 3) + (rankGain % 3) >= 3 ? 1 : 0);
 
         if (!postBlade) {
@@ -213,7 +209,6 @@ export async function main(ns) {
         await upgradeSkills();
       }
     }
-    ns.bladeburner.stopBladeburnerAction();
   }
 
   /** Moves to city with the highest estimated population. */
@@ -373,7 +368,7 @@ export async function main(ns) {
   /** @param {string} _type Type of action.
    * @param {string} _name Name of action.
    * @returns Estimated rank gain. */
-  function getActionRepGain(_type, _name) {
+  function getActionRankGain(_type, _name) {
     if (_type.toLowerCase().includes('gen')) return;
     const actionObject = _type.toLowerCase().includes('con') ? actions.Contract[_name] : _type.toLowerCase().includes('black') ? actions.BlackOp[_name] : actions.Operation[_name];
     const rewardMultiplier = Math.pow(actionObject.rewardFac, ns.bladeburner.getActionMaxLevel(_type, _name) - 1);
