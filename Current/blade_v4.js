@@ -1,7 +1,10 @@
-/** Version 4.15.1
- * Reduced RAM:
- * - getActionRepGain renamed to getActionRankGain (avoid conflict)
- * - Removed bladeburner.stopBladeburnerAction
+/** Version 4.15.2
+ * Log note can now have more than 1 line
+ * Added Assassination count goal to log note in Post-Blade
+ * City switching now uses the actual population
+ * Added bonus time to log note
+ * Log object properties now use camelCase
+ * Fixed data objects inconsistencies
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -32,13 +35,23 @@ export async function main(ns) {
     logNote = '',
     skillsToUse = [];
 
-  log.City = { Name: ns.bladeburner.getCity(), Population: ns.bladeburner.getCityEstimatedPopulation(ns.bladeburner.getCity()), Chaos: ns.bladeburner.getCityChaos(ns.bladeburner.getCity()), };
-  if (currentBlackOp) log['Black Op Chance'] = getActionChance('blackop', currentBlackOp);
+  log.city = {
+    name: ns.bladeburner.getCity(),
+    population: ns.bladeburner.getCityEstimatedPopulation(ns.bladeburner.getCity()),
+    chaos: ns.bladeburner.getCityChaos(ns.bladeburner.getCity()),
+  };
+  if (currentBlackOp) log.blackOpChance = getActionChance('blackop', currentBlackOp);
 
   const leftoverAction = ns.bladeburner.getCurrentAction();
   if (leftoverAction.type === 'BlackOp') {
-    log.Action = { Name: leftoverAction.name, Type: 'blackop', Chance: getActionChance('blackop', leftoverAction.name), Count: 1, Time: ns.bladeburner.getActionTime('blackop', leftoverAction.name), };
-    log.Rank = ns.bladeburner.getRank();
+    log.action = {
+      name: leftoverAction.name,
+      type: 'blackop',
+      chance: getActionChance('blackop', leftoverAction.name),
+      count: 1,
+      time: ns.bladeburner.getActionTime('blackop', leftoverAction.name),
+    };
+    log.rank = ns.bladeburner.getRank();
     log['Skill Points'] = ns.bladeburner.getSkillPoints();
   }
   while (ns.bladeburner.getCurrentAction().type === 'BlackOp') {
@@ -48,14 +61,20 @@ export async function main(ns) {
 
   // main loop
   while (1) {
-    checkCity();
-    await checkPopAccuracy();
-    skillsToUse = getAllSkills();
-    await checkChaos();
-
-    if (postBlade && contracts.slice().map(con => ns.bladeburner.getActionCountRemaining('contract', con)).filter(count => count >= 1500).length > 0)
+    if (
+      postBlade &&
+      contracts
+        .slice()
+        .map(con => ns.bladeburner.getActionCountRemaining('contract', con))
+        .filter(count => count >= 1500).length > 0
+    )
       toggleSleeveContract(true);
     else toggleSleeveInfiltrate(true);
+
+    checkCity();
+    await checkChaos();
+    await checkPopAccuracy();
+    skillsToUse = getAllSkills();
 
     if (!postBlade) {
       // general
@@ -84,8 +103,10 @@ export async function main(ns) {
     }
 
     if (postBlade && (ns.bladeburner.getActionCountRemaining('op', 'Assassination') <= 0 || ns.bladeburner.getBonusTime() > 1e3)) {
-      const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
-      const opToGenerate = Math.min(100, Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - ns.bladeburner.getActionSuccesses('op', 'Assassination'));
+      // const maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
+      // const opToGenerate = Math.min(100, Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - ns.bladeburner.getActionSuccesses('op', 'Assassination'));
+      const opToGenerate = 10000;
+      logNote += '\nAssassination count: ' + opToGenerate;
       while (ns.bladeburner.getActionCountRemaining('op', 'Assassination') < opToGenerate || ns.bladeburner.getBonusTime() > 1e3) {
         // if all contracts are exhausted here, set sleeves to infiltrate, else let contracts script handle it
         if (contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0)) toggleSleeveInfiltrate(true);
@@ -99,60 +120,65 @@ export async function main(ns) {
     const divider = ' -----------------------------------------------', lines = [];
 
     lines.push(' h----------------==={ sNOTE h}===-----------------');
-    lines.push(` s${fillWhitespaces((divider.length / 2) - (logNote.length / 2) - 1)}v${logNote}`);
+    const logNotePrint = logNote.split('\n');
+    ns.bladeburner.getBonusTime() > 2e3 && logNotePrint.push('Bonus Time: ' + getTimeString(ns.bladeburner.getBonusTime()));
+    logNotePrint.forEach(note => lines.push(` s${fillWhitespaces(divider.length / 2 - note.toString().length / 2 - 1)}v${note}`));
 
     lines.push(' h---------------==={ sCURRENT h}===---------------');
-    lines.push(` s${fillWhitespaces((divider.length / 2) - (log.Action.Name.length / 2))}v${log.Action.Name}`);
-    log.Action.Type !== 'gen' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.Action.Chance, 2)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${Math.round(ns.bladeburner.getActionCurrentTime() / 1e3)} / ${Math.round(log.Action.Time / 1e3)}`);
-    lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(ns.bladeburner.getActionCurrentTime() / log.Action.Time, 20)}`);
-    (log.Action.Count !== Infinity && log.Action.Count !== 1) && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.Action.Count}`);
+    lines.push(` s${fillWhitespaces(divider.length / 2 - log.action.name.length / 2)}v${log.action.name}`);
+    log.action.type !== 'gen' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.action.chance, 2)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${Math.round(ns.bladeburner.getActionCurrentTime() / 1e3)} / ${Math.round(log.action.time / 1e3)}`);
+    lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(log.action.time <= 1e3 ? 1e3 : ns.bladeburner.getActionCurrentTime() / log.action.time, 20)}`);
+    log.action.count !== Infinity && log.action.count !== 1 && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.action.count}`);
 
     lines.push(' h---------------==={ sSKILLS h}===----------------');
-    lines.push(`${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(log.Rank, log.Rank >= 1e6 ? 3 : 0, 1e6)}` +
-      `${rankGain > 0 ? ` (+ ~${ns.formatNumber(rankGain, rankGain >= 1e6 ? 1 : 0, 1e6)})` : ''}`);
-    lines.push(`${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(log["Skill Points"], log["Skill Points"] > 1e6 ? 3 : 0, 1e6)}` +
-      `${spGain > 0 ? ` (+ ~${ns.formatNumber(Math.trunc(spGain), 3, 1e6)})` : ''}`);
+    lines.push(
+      `${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(log.rank, log.rank >= 1e6 ? 3 : 0, 1e6)}` +
+      `${rankGain > 0 ? ` (+ ~${ns.formatNumber(rankGain, rankGain >= 1e6 ? 1 : 0, 1e6)})` : ''}`
+    );
+    lines.push(
+      `${fillWhitespaces(divider.length / 3 - 10)} hSkill Points: v${ns.formatNumber(log.skillPoint, log.skillPoint > 1e6 ? 3 : 0, 1e6)}` +
+      `${spGain > 0 ? ` (+ ~${ns.formatNumber(Math.trunc(spGain), 3, 1e6)})` : ''}`
+    );
 
     skillsToUse.forEach(skill => {
       if (ns.bladeburner.getSkillLevel(skill.name) > 0) {
         if (skill.name === 'Overclock' && ns.bladeburner.getSkillLevel('Overclock') >= 90) return;
         const sp = ns.bladeburner.getSkillUpgradeCost(skill.name);
         lines.push(
-          `${fillWhitespaces(divider.length / 3 - (skill.name.length) + 2)} h${skill.name}: v${ns.formatNumber(ns.bladeburner.getSkillLevel(skill.name), 3, 1e6)} - ` +
-          (log["Skill Points"] >= sp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) + `${ns.formatNumber(sp, 3, 1e6)}`
+          `${fillWhitespaces(divider.length / 3 - skill.name.length + 2)} h${skill.name}: v${ns.formatNumber(ns.bladeburner.getSkillLevel(skill.name), 3, 1e6)} - ` +
+          (log.skillPoint >= sp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`) +
+          `${ns.formatNumber(sp, 3, 1e6)}`
         );
       }
     });
 
     if (!postBlade) {
-      const rankMet = log.Rank > actions.BlackOp[currentBlackOp].reqdRank;
+      const rankMet = log.rank > actions.BlackOp[currentBlackOp].reqdRank;
       lines.push(' h--------------==={ sBLACK OP h}===---------------');
       lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp.substring(10)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: ${log['Black Op Chance'] > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log['Black Op Chance'], 2)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hRank: v${ns.formatNumber(actions.BlackOp[currentBlackOp].reqdRank, 3)} -` +
-        ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log.Rank / actions.BlackOp[currentBlackOp].reqdRank)}`);
-    }
-    else {
+      lines.push(
+        `${fillWhitespaces(divider.length / 4)} hChance: ${log.blackOpChance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log.blackOpChance, 2)}`
+      );
+      lines.push(
+        `${fillWhitespaces(divider.length / 4 + 2)} hRank: v${ns.formatNumber(actions.BlackOp[currentBlackOp].reqdRank, 3)} -` +
+        ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log.rank / actions.BlackOp[currentBlackOp].reqdRank)}`
+      );
+    } else {
       lines.push(' h----------------==={ sCITY h}===-----------------');
-      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${log.City.Name}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(log.City.Population, 3)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(log.City.Chaos, 3)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${log.city.name}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(log.city.population, 3)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(log.city.chaos, 3)}`);
 
       lines.push(' h------------==={ sASSASSINATION h}===------------');
-      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hLevel: v${log.Assassination.Level}`);
-      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.Assassination.Chance, 2)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 - 3)} hSuccesses: v${ns.formatNumber(log.Assassination.Successes, 3, 1e6)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4)} hNeeded: v${ns.formatNumber(log.Assassination.Needed, 3, 1e6)}`);
-      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.Assassination.Count}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hLevel: v${log.assassination.level}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.assassination.chance, 2)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 - 3)} hSuccesses: v${ns.formatNumber(log.assassination.successes, 3, 1e6)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4)} hNeeded: v${ns.formatNumber(log.assassination.needed, 3, 1e6)}`);
+      lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.assassination.count}`);
     }
 
-    ns.print(lines
-      .join('\n')
-      .replaceAll(' s', ` ${colors.section}`)
-      .replaceAll(' h', ` ${colors.header}`)
-      .replaceAll(' v', ` ${colors.value}`)
-    );
+    ns.print(lines.join('\n').replaceAll(' s', ` ${colors.section}`).replaceAll(' h', ` ${colors.header}`).replaceAll(' v', ` ${colors.value}`));
     ns.resizeTail((divider.length - 2) * 10, lines.length * 25 + 20);
   }
 
@@ -164,42 +190,55 @@ export async function main(ns) {
    * @param {boolean} stamina Whether to check stamina. Set to ```false``` to avoid stamina check (and possible infinite loop). Defaults to ```true```.
    * @param {boolean} blackOp Whether to check for Black Op. Set to ```false``` to disable Black Op (why?). Defaults to ```true```. */
   async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
-    log.Action = { ...log.Action, Name: action, Type: type };
+    log.action = { ...log.action, name: action, type: type };
     const titleAction = type !== 'blackop' ? action : 'Op. ' + action.substring(10);
 
     if (ns.bladeburner.startAction(type, action)) {
       for (let i = 1; i <= count; i++) {
         if (ns.bladeburner.getActionCountRemaining(type, action) <= 0) break;
 
-        log.Rank = ns.bladeburner.getRank();
-        log.Action = {
-          ...log.Action,
-          Chance: getActionChance(type, action), Count: ns.bladeburner.getActionCountRemaining(type, action), Time: ns.bladeburner.getActionTime(type, action),
+        log.rank = ns.bladeburner.getRank();
+        log.action = {
+          ...log.action,
+          chance: getActionChance(type, action),
+          count: ns.bladeburner.getActionCountRemaining(type, action),
+          time: ns.bladeburner.getActionTime(type, action),
         };
-        log.City = { ...log.City, Population: ns.bladeburner.getCityEstimatedPopulation(log.City.Name), Chaos: ns.bladeburner.getCityChaos(log.City.Name), };
+        log.city = {
+          ...log.city,
+          population: ns.bladeburner.getCityEstimatedPopulation(log.city.name),
+          chaos: ns.bladeburner.getCityChaos(log.city.name),
+        };
+
         if (postBlade || action === 'Assassination') {
-          const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination'), maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
-          log.Assassination = {
-            ...log.Assassination,
-            Chance: getActionChance('op', 'Assassination'), Level: maxLevel, Successes: successes, Needed: Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - successes,
+          const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination'),
+            maxLevel = ns.bladeburner.getActionMaxLevel('op', 'Assassination');
+          log.assassination = {
+            ...log.assassination,
+            chance: getActionChance('op', 'Assassination'),
+            level: maxLevel,
+            successes: successes,
+            needed: Math.ceil(0.5 * maxLevel * (2 * 2.5 + (maxLevel - 1))) - successes,
           };
         }
 
         rankGain = getActionRankGain(type, action);
-        spGain = Math.trunc(rankGain / 3) + ((log.Rank % 3) + (rankGain % 3) >= 3 ? 1 : 0);
+        spGain = Math.trunc(rankGain / 3) + ((log.rank % 3) + (rankGain % 3) >= 3 ? 1 : 0);
 
         if (!postBlade) {
-          stamina && await checkStamina();
-          blackOp && await checkBlackOps();
+          stamina && (await checkStamina());
+          blackOp && (await checkBlackOps());
         }
 
-        ns.setTitle(`R:${ns.formatNumber(log.Rank, log.Rank >= 1e6 ? 2 : 0, 1e6)} | ` + (postBlade ? ' ' : `D:${ns.formatPercent(getActionChance('blackop', 'Operation Daedalus'), 0)} | `) + titleAction);
+        ns.setTitle(
+          `R:${ns.formatNumber(log.rank, log.rank >= 1e6 ? 2 : 0, 1e6)} | ` + (postBlade ? ' ' : `D:${ns.formatPercent(getActionChance('blackop', 'Operation Daedalus'), 0)} | `) + titleAction
+        );
 
         let current = ns.bladeburner.getActionCurrentTime();
 
-        while (current <= log.Action.Time) {
-          if (postBlade) log.Assassination.Count = ns.bladeburner.getActionCountRemaining('op', 'Assassination');
-          log["Skill Points"] = ns.bladeburner.getSkillPoints();
+        while (current <= log.action.time) {
+          if (postBlade) log.assassination.count = ns.bladeburner.getActionCountRemaining('op', 'Assassination');
+          log.skillPoint = ns.bladeburner.getSkillPoints();
           logAction();
           await ns.sleep(1e3);
           const bonus = ns.bladeburner.getBonusTime();
@@ -213,10 +252,18 @@ export async function main(ns) {
 
   /** Moves to city with the highest estimated population. */
   function checkCity() {
-    const citiesSortedPop = cities.sort((a, b) => ns.bladeburner.getCityEstimatedPopulation(b) - ns.bladeburner.getCityEstimatedPopulation(a));
+    const citiesData = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bladeburner.data.cities;
+    const citiesTruePop = {};
+    Object.keys(citiesData).forEach(c => (citiesTruePop[c] = citiesData[c].data.pop));
+
+    const citiesSortedPop = cities.sort((a, b) => citiesTruePop[b] - citiesTruePop[a]);
     if (citiesSortedPop.length > 0) ns.bladeburner.switchCity(citiesSortedPop[0]);
-    log.City.Name = ns.bladeburner.getCity();
-    log.City = { ...log.City, Population: ns.bladeburner.getCityEstimatedPopulation(log.City.Name), Chaos: ns.bladeburner.getCityChaos(log.City.Name), };
+    log.city.name = ns.bladeburner.getCity();
+    log.city = {
+      ...log.city,
+      population: ns.bladeburner.getCityEstimatedPopulation(log.city.name),
+      chaos: ns.bladeburner.getCityChaos(log.city.name),
+    };
   }
 
   /** Check population accuracy, increase if necessary. */
@@ -224,17 +271,19 @@ export async function main(ns) {
     // const truePop = JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bladeburner.data.cities[log.City.Name].data.pop;
     logNote = 'Increasing population accuracy';
 
-    while (ns.bladeburner.getCityEstimatedPopulation(log.City.Name) !== JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bladeburner.data.cities[log.City.Name].data.pop) {
-      if (getActionChance('op', 'Undercover Operation') >= chanceLimits.operation
-        && ns.bladeburner.getActionCountRemaining('op', 'Undercover Operation') > 0
-        && ns.bladeburner.getActionTime('op', 'Undercover Operation') <= 30e3)
+    while (ns.bladeburner.getCityEstimatedPopulation(log.city.name) !== JSON.parse(JSON.parse(atob(eval('window').appSaveFns.getSaveData().save)).data.PlayerSave).data.bladeburner.data.cities[log.city.name].data.pop) {
+      if (
+        getActionChance('op', 'Undercover Operation') >= chanceLimits.operation &&
+        ns.bladeburner.getActionCountRemaining('op', 'Undercover Operation') > 0 &&
+        ns.bladeburner.getActionTime('op', 'Undercover Operation') <= 30e3
+      )
         await performAction('op', 'Undercover Operation', 1, false, false);
-
-      else if (getActionChance('op', 'Investigation') >= chanceLimits.operation
-        && ns.bladeburner.getActionCountRemaining('op', 'Investigation') > 0
-        && ns.bladeburner.getActionTime('op', 'Investigation') <= 30e3)
+      else if (
+        getActionChance('op', 'Investigation') >= chanceLimits.operation &&
+        ns.bladeburner.getActionCountRemaining('op', 'Investigation') > 0 &&
+        ns.bladeburner.getActionTime('op', 'Investigation') <= 30e3
+      )
         await performAction('op', 'Investigation', 1, false, false);
-
       else await performAction('gen', 'Field Analysis', 1, false, false);
     }
   }
@@ -243,8 +292,7 @@ export async function main(ns) {
   async function checkStamina() {
     if (ns.bladeburner.getStamina()[0] < 0.5 * ns.bladeburner.getStamina()[1]) {
       logNote = 'Increasing stamina';
-      while (ns.bladeburner.getStamina()[0] < ns.bladeburner.getStamina()[1])
-        await performAction('gen', 'Hyperbolic Regeneration Chamber', 1, false, false);
+      while (ns.bladeburner.getStamina()[0] < ns.bladeburner.getStamina()[1]) await performAction('gen', 'Hyperbolic Regeneration Chamber', 1, false, false);
     }
   }
 
@@ -256,8 +304,7 @@ export async function main(ns) {
     let sp = ns.bladeburner.getSkillPoints();
     let count = calculateLevels(allSkills[0], ns.bladeburner.getSkillLevel(allSkills[0].name), sp);
     while (sp >= ns.bladeburner.getSkillUpgradeCost(allSkills[0].name, count)) {
-      if (allSkills[0].name === 'Overclock' && ns.bladeburner.getSkillLevel(allSkills[0].name) >= 90)
-        allSkills.splice(0, 1);
+      if (allSkills[0].name === 'Overclock' && ns.bladeburner.getSkillLevel(allSkills[0].name) >= 90) allSkills.splice(0, 1);
       ns.bladeburner.upgradeSkill(allSkills[0].name, count);
       allSkills.sort((a, b) => ns.bladeburner.getSkillUpgradeCost(a.name) - ns.bladeburner.getSkillUpgradeCost(b.name));
       sp = ns.bladeburner.getSkillPoints();
@@ -286,7 +333,7 @@ export async function main(ns) {
       }
     } else if (ns.bladeburner.getCityChaos(currentCity) <= 50) return;
 
-    toggleSleeveDiplomacy(true);
+    if (!postBlade) toggleSleeveDiplomacy(true);
     logNote = 'Decreasing Chaos';
     while (ns.bladeburner.getCityChaos(currentCity) > 50) await performAction('gen', 'Diplomacy', 1, false, false);
     toggleSleeveDiplomacy(false);
@@ -312,11 +359,10 @@ export async function main(ns) {
           skillsToUse = getAllSkills();
           ns.alert(`!  Operation Daedalus is accomplished  !\nDestroy this BitNode when you're ready`);
           // Log the time of the Daedalus completion to terminal, only if it is actually performed, not just finished
-          ns.tprintf(`\n(!) Finished Daedalus at: ${(new Date()).toLocaleString()}`, 0);
-        }
-        else {
+          ns.tprintf(`\n(!) Finished Daedalus at: ${new Date().toLocaleString()}`, 0);
+        } else {
           currentBlackOp = nextBlackOp;
-          log['Black Op Chance'] = getActionChance('blackop', currentBlackOp);
+          log.blackOpChance = getActionChance('blackop', currentBlackOp);
         }
       }
     }
@@ -340,8 +386,7 @@ export async function main(ns) {
     let bestOp = '';
     operations.forEach(op => {
       if (bestOp !== '') return;
-      if (ns.bladeburner.getActionCountRemaining('op', op) > 0 && getActionChance('op', op) >= chanceLimits.operation)
-        bestOp = op;
+      if (ns.bladeburner.getActionCountRemaining('op', op) > 0 && getActionChance('op', op) >= chanceLimits.operation) bestOp = op;
     });
     return bestOp;
   }
@@ -434,7 +479,7 @@ export async function main(ns) {
 
   function getSkillMults(str) {
     if (str.includes('Str') || str.includes('Def')) return 1 + ns.bladeburner.getSkillLevel('Reaper') * 0.02;
-    if (str.includes('Dex') || str.includes('Agi')) return 1 + (ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04);
+    if (str.includes('Dex') || str.includes('Agi')) return 1 + ns.bladeburner.getSkillLevel('Reaper') * 0.02 * ns.bladeburner.getSkillLevel('Evasive System') * 0.04;
     if (str.includes('ChanceAll')) return 1 + ns.bladeburner.getSkillLevel(`Blade's Intuition`) * 0.03;
     if (str.includes('ChanceStealth')) return 1 + ns.bladeburner.getSkillLevel(`Cloak`) * 0.055;
     if (str.includes('ChanceKill')) return 1 + ns.bladeburner.getSkillLevel(`Short-Circuit`) * 0.055;
@@ -494,6 +539,17 @@ export async function main(ns) {
   }
 }
 
+/** Convert time in milliseconds to ```string``` representation.
+ * @param {number} time The time in milliseconds
+ * @return {string} The formatted time: ```mm:ss```
+ */
+function getTimeString(time) {
+  let hour = Math.trunc(time / 36e5);
+  let minute = Math.trunc((time % 36e5) / 6e4);
+  let second = Math.trunc((time % 6e4) / 1e3);
+  return `${hour > 0 ? `${hour}h ` : ''}${minute > 0 ? `${minute}m ` : ''}${second > 0 ? `${second}s` : ''}`;
+}
+
 /** Convert ```HEX``` colors to ```ANSI``` colors, default is ```#ffffff```. This color is used for text (foreground).
  * @param {string} colorHex color in hex format
  * @returns ```Unicode``` string for the color */
@@ -512,8 +568,8 @@ function getColor(colorHex = '#ffffff') {
 function progressBar(progress, maxChar = 10) {
   progress = Math.min(1, Math.max(progress, 0));
   const fullCount = Math.round(progress * maxChar),
-    // 0-0.2: red, 0.2-0.5: orange, 0.5-0.7: yellow, 0.7-0.9: lime, 0.9-1: green
-    color = fullCount > Math.round(0.9 * maxChar) ? '\x1b[38;5;10m' : fullCount > Math.round(0.7 * maxChar) ? '\x1b[38;5;154m' : fullCount > Math.round(0.5 * maxChar) ? '\x1b[38;5;11m' : fullCount > Math.round(0.2 * maxChar) ? '\x1b[38;5;208m' : '\x1b[38;5;9m';
+    // 0-0.2: red, 0.2-0.4: orange, 0.4-0.6: yellow, 0.6-0.8: lime, 0.8-1: green
+    color = fullCount > Math.round(0.8 * maxChar) ? '\x1b[38;5;10m' : fullCount > Math.round(0.6 * maxChar) ? '\x1b[38;5;154m' : fullCount > Math.round(0.4 * maxChar) ? '\x1b[38;5;11m' : fullCount > Math.round(0.2 * maxChar) ? '\x1b[38;5;208m' : '\x1b[38;5;9m';
   return `[${color}${'█'.repeat(fullCount)}\x1b[38;5;235m${'█'.repeat(Math.max(0, maxChar - fullCount))}\x1b[38;5;15m]`;
 }
 
@@ -537,11 +593,11 @@ const sleeveControl = {
 };
 
 const log = {
-  Action: { Name: '', Type: '', Chance: 0, Count: 0, Time: 0, },
-  Rank: 0, 'Skill Points': 0,
-  City: { Name: '', Population: 0, Chaos: 0, },
-  'Black Op Chance': 0,
-  Assassination: { Chance: 0, Level: 0, Successes: 0, Needed: 0, Count: 0, },
+  action: { name: '', type: '', chance: 0, count: 0, time: 0 },
+  rank: 0, skillPoint: 0,
+  city: { name: '', population: 0, chaos: 0 },
+  blackOpChance: 0,
+  assassination: { chance: 0, level: 0, successes: 0, needed: 0, count: 0 },
 };
 
 const cities = ['Aevum', 'Chongqing', 'Sector-12', 'New Tokyo', 'Ishima', 'Volhaven'];
@@ -553,10 +609,10 @@ const skills = [
   { name: 'Cloak', baseCost: 2, costInc: 1.1 },
   { name: 'Short-Circuit', baseCost: 2, costInc: 2.1 },
   { name: 'Digital Observer', baseCost: 2, costInc: 2.1 },
-  { name: 'Tracer', baseCost: 2, costInc: 2.1, },
+  { name: 'Tracer', baseCost: 2, costInc: 2.1 },
   { name: 'Reaper', baseCost: 2, costInc: 2.1 },
   { name: 'Evasive System', baseCost: 2, costInc: 2.1 },
-  { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 }
+  { name: 'Hyperdrive', baseCost: 1, costInc: 2.5 },
 ];
 const actions = {
   Contract: {
@@ -586,7 +642,7 @@ const actions = {
       weights: { hack: 0, str: 0.2, def: 0.2, dex: 0.2, agi: 0.2, cha: 0.1, int: 0.1, },
       decays: { hack: 0, str: 0.91, def: 0.91, dex: 0.91, agi: 0.91, cha: 0.8, int: 0.9, },
       isKill: true,
-    }
+    },
   },
   Operation: {
     Investigation: {
@@ -598,7 +654,7 @@ const actions = {
       decays: { hack: 0.85, str: 0.9, def: 0.9, dex: 0.9, agi: 0.9, cha: 0.7, int: 0.9, },
       isStealth: true,
     },
-    "Undercover Operation": {
+    'Undercover Operation': {
       baseDifficulty: 500,
       difficultyFac: 1.04,
       rewardFac: 1.09,
@@ -607,7 +663,7 @@ const actions = {
       decays: { hack: 0.8, str: 0.9, def: 0.9, dex: 0.9, agi: 0.9, cha: 0.7, int: 0.9, },
       isStealth: true,
     },
-    "Sting Operation": {
+    'Sting Operation': {
       baseDifficulty: 650,
       difficultyFac: 1.04,
       rewardFac: 1.095,
@@ -616,7 +672,7 @@ const actions = {
       decays: { hack: 0.8, str: 0.85, def: 0.85, dex: 0.85, agi: 0.85, cha: 0.7, int: 0.9, },
       isStealth: true,
     },
-    "Stealth Retirement Operation": {
+    'Stealth Retirement Operation': {
       baseDifficulty: 1000,
       difficultyFac: 1.05,
       rewardFac: 1.11,
@@ -635,7 +691,7 @@ const actions = {
       decays: { hack: 0.6, str: 0.8, def: 0.8, dex: 0.8, agi: 0.8, cha: 0, int: 0.8, },
       isStealth: true,
       isKill: true,
-    }
+    },
   },
   BlackOp: {
     'Operation Typhoon': {
@@ -803,5 +859,5 @@ const actions = {
       weights: { hack: 0.1, str: 0.2, def: 0.2, dex: 0.2, agi: 0.2, cha: 0, int: 0.1, },
       decays: { hack: 0.6, str: 0.8, def: 0.8, dex: 0.8, agi: 0.8, cha: 0, int: 0.75, },
     },
-  }
+  },
 };
