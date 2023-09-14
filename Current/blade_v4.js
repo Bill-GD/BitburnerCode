@@ -1,10 +1,5 @@
-/** Version 4.15.2
- * Log note can now have more than 1 line
- * Added Assassination count goal to log note in Post-Blade
- * City switching now uses the actual population
- * Added bonus time to log note
- * Log object properties now use camelCase
- * Fixed data objects inconsistencies
+/** Version 4.16
+ * Tries to upgrade Cyber's Edge skill to avoid running out of stamina (breaks assassination loop)
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -130,6 +125,7 @@ export async function main(ns) {
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${Math.round(ns.bladeburner.getActionCurrentTime() / 1e3)} / ${Math.round(log.action.time / 1e3)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(log.action.time <= 1e3 ? 1e3 : ns.bladeburner.getActionCurrentTime() / log.action.time, 20)}`);
     log.action.count !== Infinity && log.action.count !== 1 && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.action.count}`);
+    !log.action.type.toLowerCase().includes('gen') && lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v-${ns.formatNumber(log.action.staminaCost, 3)} / ${ns.formatNumber(ns.bladeburner.getStamina()[1], 3)}`);
 
     lines.push(' h---------------==={ sSKILLS h}===----------------');
     lines.push(
@@ -203,12 +199,15 @@ export async function main(ns) {
           chance: getActionChance(type, action),
           count: ns.bladeburner.getActionCountRemaining(type, action),
           time: ns.bladeburner.getActionTime(type, action),
+          staminaCost: calculateStaminaCost(type, action)
         };
         log.city = {
           ...log.city,
           population: ns.bladeburner.getCityEstimatedPopulation(log.city.name),
           chaos: ns.bladeburner.getCityChaos(log.city.name),
         };
+
+        if (log.action.staminaCost >= ns.bladeburner.getStamina()[1] * 0.95 && !ns.bladeburner.upgradeSkill("Cyber's Edge", 1)) break;
 
         if (postBlade || action === 'Assassination') {
           const successes = ns.bladeburner.getActionSuccesses('op', 'Assassination'),
@@ -511,6 +510,19 @@ export async function main(ns) {
     return 1;
   }
 
+  /** 
+   * @param {string} type Type of action.
+   * @param {string} name Name of action.
+   * @returns Stamina cost of the action. 
+   */
+  function calculateStaminaCost(type, actionName) {
+    // if (type.toLowerCase().includes('gen')) return;
+    const action = type.toLowerCase().includes('contract') ? actions.Contract[actionName] : actions.Operation[actionName];
+    const difficulty = action.baseDifficulty * Math.pow(action.difficultyFac, ns.bladeburner.getActionMaxLevel(type.toLowerCase(), actionName) - 1);
+    const difficultyMultiplier = Math.pow(difficulty, 0.28) + difficulty / 650;
+    return 0.285 * difficultyMultiplier;
+  }
+
   function toggleSleeveInfiltrate(toggle) {
     sleeveControl.runInfiltrate = toggle;
     if (toggle) {
@@ -593,7 +605,7 @@ const sleeveControl = {
 };
 
 const log = {
-  action: { name: '', type: '', chance: 0, count: 0, time: 0 },
+  action: { name: '', type: '', chance: 0, count: 0, time: 0, staminaCost: 0 },
   rank: 0, skillPoint: 0,
   city: { name: '', population: 0, chaos: 0 },
   blackOpChance: 0,
