@@ -1,10 +1,15 @@
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog('ALL'); ns.clearLog();
+
+  const flagOptions = ns.flags([
+    ['forceLog', false],
+  ]);
+
   const fileName = 'int-log.txt',
     delayHour = 24; // time between each log entry (in hours)
   const file = ns.read(fileName);
-  if (file.match(/[M\/\:]/)) {
+  if (!flagOptions.forceLog && file.match(/[M\/\:]/)) {
     const latest = file.split('\n').filter(line => line !== '').reverse()[0],
       time = latest.split(/,/)[0].trim(),
       oldTime = (new Date(time)).getTime();
@@ -38,6 +43,7 @@ export async function main(ns) {
     const string = `${getTimeString(new Date())}, ${currentLevel}, ${currentXp}${rate}\n`;
     ns.write(fileName, string, 'a');
     ns.print(`Logged at: ${getTimeString(new Date())}`);
+    if (flagOptions.forceLog) ns.exit();
     await ns.sleep(delayHour * 3600e3);
   }
 }

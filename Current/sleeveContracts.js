@@ -1,7 +1,6 @@
-/** Version 1.1.1
- * Highlight sleeves that are taking on contract
- * Improved the prevention of taking contracts with <100% chance
- * - Exits as soon as a contract of any sleeve has <100% chance
+/** Version 1.1.2
+ * Improved contracts chance and count checks
+ * Set all sleeves to Idle if not Infiltrating when script runs
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -13,12 +12,8 @@ export async function main(ns) {
 
   ns.run('bladeSkills.js', { preventDuplicates: true }, flagOptions.autoClose ? '--autoClose' : '', flagOptions.avoidOverlap ? '--avoidOverlap' : '');
   ns.atExit(() => {
-    flagOptions.autoClose && ns.closeTail()
-    for (let i = 0; i < 8; i++) {
-      const task = ns.sleeve.getTask(i);
-      if (task && task.type === 'BLADEBURNER' && task.actionType === 'Contracts')
-        ns.sleeve.setToIdle(i);
-    }
+    flagOptions.autoClose && ns.closeTail();
+    for (let i = 0; i < 8; i++) if (ns.sleeve.getTask(i)?.type !== 'INFILTRATE') ns.sleeve.setToIdle(i);
     ns.kill('bladeSkills.js', 'home', flagOptions.autoClose ? '--autoClose' : '', flagOptions.avoidOverlap ? '--avoidOverlap' : '');
   });
 
@@ -39,8 +34,12 @@ export async function main(ns) {
         conCopy.splice(conCopy.indexOf(task.actionName), 1);
     });
     // avoid failing contracts (builds up shock -> bad)
-    if (allSleeves.filter(s => contracts.filter(con => getActionChance('contract', con, s.id) < 1).length > 0).length > 0) {
-      ns.write('blade-sleeve.txt', JSON.stringify({ runContract: false, runDiplomacy: true, runInfiltrate: false, }), 'w');
+    if (allSleeves.filter(s => !(contracts.every(con => getActionChance('contract', con, s.id) >= 1))).length > 0 ||
+      allSleeves.every(s => !ns.sleeve.getTask(s.id) && s.info.storedCycles < 50) ||
+      contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0)) {
+
+      ns.write('blade-sleeve.txt', JSON.stringify({ runContract: false, runDiplomacy: false, runInfiltrate: true, }), 'w');
+      ns.print(allSleeves.map(s => contracts.map(con => getActionChance('contract', con, s.id))));
       ns.exit();
     }
 
@@ -73,8 +72,6 @@ export async function main(ns) {
       conCopy.splice(0, 1);
     }
     logTask();
-    if (allSleeves.every(s => !ns.sleeve.getTask(s.id)) || contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0))
-      ns.write('blade-sleeve.txt', JSON.stringify({ runContract: false, runDiplomacy: false, runInfiltrate: true, }), 'w');
     await ns.sleep(200);
   }
 
@@ -102,7 +99,7 @@ export async function main(ns) {
       ns.print(`    ├ ${Object.keys(actions).map(con => `${con.charAt(0)}: ${ns.formatPercent(getActionChance('contract', con), 2)}`).join(', ')}`);
       ns.print(`    └ ${task} - ${ns.formatNumber(ns.sleeve.getSleeve(id).storedCycles, 3, 1e6)}`);
     }
-    ns.resizeTail(450, 27 * 25 + 10);
+    ns.resizeTail(500, 27 * 25 + 10);
   }
 
   function getActionChance(type, actionName, sleeveId = 0, city = ns.bladeburner.getCity()) {

@@ -1,6 +1,5 @@
-/** Version 2.3
- * Grouped some options together
- * Added BN Multipliers
+/** Version 2.3.1
+ * Fixed HUD option can't be exited without selecting any option
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -47,7 +46,7 @@ export async function main(ns) {
   let maxTextWidth = 0;
   let buttons = [];
 
-  const shadowSize = 0.5, shadowBlur = 3.5;
+  const shadowSize = 0.2, shadowBlur = 3.5;
   const createElement = (type, attributes = {}, eventType, eventCallback = () => { }, hook = null) => {
     const element = Object.assign(doc.createElement(type), attributes);
     Object.assign(element, { title: `${element.innerHTML}` });
@@ -58,23 +57,24 @@ export async function main(ns) {
       fontFamily: "Cascadia Code",
       height: '20px',
       backgroundColor: theme.backgroundsecondary,
-      borderColor: theme.backgroundsecondary,
       cursor: 'pointer',
-      boxShadow: `0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}`,
-      transition: 'all 0.2s ease-in',
+      boxShadow: `inset 0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}, 0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}`,
+      transition: 'all 0.2s ease-out',
+      borderRadius: `4px`,
+      border: `1px solid ${element.style.color}`,
+      // border: `none`,
     }));
     element.addEventListener(eventType, eventCallback);
     element.addEventListener('mouseover', (event) => {
+      event.target.style.border = `1px solid ${element.style.color}`;
       event.target.style.backgroundColor = element.style.color;
-      event.target.style.borderColor = element.style.color;
-      event.target.style.boxShadow = `0px 0px ${shadowBlur}px ${shadowSize + 4}px ${element.style.color}`;
+      event.target.style.boxShadow = `inset 0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}, 0px 0px ${shadowBlur}px ${shadowSize + 3}px ${element.style.color}`;
       event.target.style.color = theme.backgroundsecondary;
     });
     element.addEventListener('mouseout', (event) => {
       event.target.style.color = element.style.backgroundColor;
-      event.target.style.boxShadow = `0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}`;
+      event.target.style.boxShadow = `inset 0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}, 0px 0px ${shadowBlur}px ${shadowSize}px ${element.style.color}`;
       event.target.style.backgroundColor = theme.backgroundsecondary;
-      event.target.style.borderColor = theme.backgroundsecondary;
     });
     if (hook) hook.append('\xa0', element);
     buttons.push(element);
@@ -118,7 +118,7 @@ export async function main(ns) {
   createElement('button', { innerHTML: 'Graft', style: { color: theme.combat } }, 'click', () => optionStates.grafting = true, hooks.hookStr);
 
   // BN mults
-  createElement('button', { innerHTML: 'BN Mults', style: { color: theme.combat } }, 'click', () => optionStates.bnMult = true, hooks.hookStr);
+  createElement('button', { innerHTML: 'Mults', style: { color: theme.combat } }, 'click', () => optionStates.bnMult = true, hooks.hookStr);
 
   // blade
   createElement('button', { innerHTML: 'Blade', style: { color: theme.combat } }, 'click', () => optionStates.blade = true, hooks.hookDef);
@@ -282,7 +282,8 @@ export async function main(ns) {
     if (optionStates.hud) {
       const choice = await ns.prompt('Choose HUD option:', { type: "select", choices: ['Restart', 'Exit'] });
       if (choice === 'Restart') ns.exec('restart.js', 'home', { preventDuplicates: true }, 'hudExtra_v2.js');
-      if (choice === 'Exit') ns.exit();
+      else if (choice === 'Exit') ns.exit();
+      else optionStates.hud = false;
     }
 
     hooks.hook0.innerText = key.join('\n');

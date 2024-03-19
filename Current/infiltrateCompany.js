@@ -9,8 +9,11 @@ export async function main(ns) {
   ns.tail();
   ns.clearLog();
 
-  let keyboardEvent = doc.createEvent('KeyboardEvent');
-  let initMethod = typeof keyboardEvent.initKeyboardEvent !== 'undefined' ? 'initKeyboardEvent' : 'initKeyEvent';
+  const doc = eval('document');
+
+  // let keyboardEvent = new KeyboardEvent('keydown', { key: 'A' });
+  // ns.print('Event: [', keyboardEvent.key, '] |End');
+  // let initMethod = typeof keyboardEvent.initKeyboardEvent !== 'undefined' ? 'initKeyboardEvent' : 'initKeyEvent';
 
   // const company = `Noodle Bar`;
   const company = (await ns.prompt('Enter company name: ', { 'type': 'text' }));
@@ -35,11 +38,11 @@ export async function main(ns) {
   infilButton[Object.keys(infilButton)[1]].onClick({ isTrusted: true });
 
   // starts the infiltration
-  // const startButton = Array.from(doc.querySelectorAll('button')).find(el => el.innerText.includes('Start'));
-  // startButton[Object.keys(startButton)[1]].onClick({ isTrusted: true });
+  const startButton = Array.from(doc.querySelectorAll('button')).find(el => el.innerText.includes('Start'));
+  startButton[Object.keys(startButton)[1]].onClick({ isTrusted: true });
 
   // keyboardEvent[initMethod](
-  //   'keypress', // event type: keydown, keyup, keypress
+  //   'keydown', // event type: keydown, keyup, keypress
   //   true, // bubbles
   //   true, // cancelable
   //   eval('window'), // view: should be window
@@ -50,13 +53,34 @@ export async function main(ns) {
   //   false, // shiftKey
   //   false, // metaKey
   // );
+  try {
+    const keyboardEvent = {
+      type: 'keydown',
+      isTrusted: true,
+      key: 'Space',
+      code: '',
+      location: 0,
+      repeat: false,
+      isComposing: false,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      metaKey: false,
+      repeatCount: 0,
+      charCode: 0,
+      keyCode: 0,
+      which: 0,
+    }
 
-  // await ns.sleep(4e3);
+    await ns.sleep(4e3);
 
-  // for (let i = 0; i < 500; i++) {
-  //   doc.dispatchEvent(keyboardEvent);
-  //   await ns.sleep(10);
-  // }
+    for (let i = 0; i < 500; i++) {
+      doc.dispatchEvent(keyboardEvent);
+      await ns.sleep(10);
+    }
+  } catch (error) {
+    ns.print(error);
+  }
 }
 
 function returnToWorld() {

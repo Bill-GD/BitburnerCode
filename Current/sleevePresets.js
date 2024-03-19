@@ -1,5 +1,6 @@
-/** Version 1.2
- * Added support for other script (ns.run() or ns.exec())
+/** Version 1.2.1
+ * Auto set to shock recovery if shock > 0
+ * Refactored sleeves data
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -46,7 +47,7 @@ export async function main(ns) {
       } catch { }
     });
 
-  let type, action = '';
+  let [type, action] = ['', ''];
 
   switch (preset) {
     case 'Recover':
@@ -88,20 +89,25 @@ export async function main(ns) {
     let allSleeves = [];
     for (let i = 0; i < 8; i++) {
       const task = ns.sleeve.getTask(i);
-      allSleeves.push([i, ns.sleeve.getSleeve(i), task ? true : false, action]);
+      allSleeves.push({ id: i, info: ns.sleeve.getSleeve(i), assigned: task ? true : false, action: action });
     }
-    let assigned = action?.includes('Infil') ? allSleeves.filter(s => ns.sleeve.getTask(s[0])).length > 0 : false;
-    allSleeves = allSleeves.sort((a, b) => b[1].storedCycles - a[1].storedCycles);
+    let assigned = action?.includes('Infil') ? allSleeves.filter(s => ns.sleeve.getTask(s.id)).length > 0 : false;
+    allSleeves = allSleeves.sort((a, b) => b.info.storedCycles - a.info.storedCycles);
 
     for (const sleeve of allSleeves) {
-      if (type === 'Recovery' && ns.sleeve.getSleeve(sleeve[0]).shock <= 0) continue;
-      const task = ns.sleeve.getTask(sleeve[0]);
+      if (sleeve.info.shock > 0) {
+        ns.sleeve.setToShockRecovery(sleeve.id);
+        continue;
+      }
+      if (type === 'Recovery' && sleeve.info.shock <= 0) continue;
+      
+      const task = ns.sleeve.getTask(sleeve.id);
       if (task && task.type === 'BLADEBURNER' && task.actionType === 'Contracts') continue;
-      if (sleeve[1].storedCycles < cycleLimit * 10) {
-        if (task && task.cyclesNeeded - task.cyclesWorked > sleeve[1].storedCycles) {
-          ns.sleeve.setToIdle(sleeve[0]);
-          sleeve[2] = false;
-          sleeve[3] = 'Idle';
+      if (sleeve.info.storedCycles < cycleLimit * 10) {
+        if (task && task.cyclesNeeded - task.cyclesWorked > sleeve.info.storedCycles) {
+          ns.sleeve.setToIdle(sleeve.id);
+          sleeve.assigned = false;
+          sleeve.action = 'Idle';
           if (action.includes('Infil')) assigned = false;
         }
         continue;
@@ -109,29 +115,29 @@ export async function main(ns) {
 
       if (assigned && action.includes('Infil')) continue;
 
-      if (!sleeve[2]) {
+      if (!sleeve.assigned) {
         switch (type) {
           case 'Recovery':
-            ns.sleeve.setToShockRecovery(sleeve[0]);
+            ns.sleeve.setToShockRecovery(sleeve.id);
             break;
           case 'Crime':
-            ns.sleeve.setToCommitCrime(sleeve[0], action);
+            ns.sleeve.setToCommitCrime(sleeve.id, action);
             break;
           case 'Blade':
-            ns.sleeve.setToBladeburnerAction(sleeve[0], action);
+            ns.sleeve.setToBladeburnerAction(sleeve.id, action);
             if (action.includes('Infil')) assigned = true;
             break;
         }
-        sleeve[2] = true;
+        sleeve.assigned = true;
       }
     }
     logTask();
-    await ns.sleep(100);
+    await ns.sleep(200);
   }
 
   function logTask() {
     ns.clearLog();
-    ns.print(' Preset: ', preset);
+    ns.print(' Preset: ', preset ? preset : 'None');
     for (let id = 0; id < 8; id++) {
       let task = ns.sleeve.getTask(id);
       if (!task) task = `Idle`;

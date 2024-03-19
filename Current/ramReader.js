@@ -46,6 +46,7 @@ export async function main(ns) {
       ns.print(t, ' -> ', ns.formatRam(cost, 2));
     } catch {}
   });
+  ns.print(`\nScript: ${script}`);
   ns.print('Total:');
   ns.print(' All: ', ns.formatRam(totalRam + 1.6, 2));
   ns.print(' Actual: ', ns.formatRam(Math.min(1024, totalRam + 1.6), 2));

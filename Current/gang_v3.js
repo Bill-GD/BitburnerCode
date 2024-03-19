@@ -1,7 +1,5 @@
-/** Version 3.0.2
- * No longer limit allowance for equipment
- * -> better investment -> faster income
- * Title shows current territory & income
+/** Version 3.0.3
+ * Closes tail when Territory reaches 100%
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -142,7 +140,10 @@ export async function main(ns) {
         else ns.gang.setTerritoryWarfare(false);
       }
     }
-    else ns.gang.setTerritoryWarfare(false);
+    else {
+      ns.gang.setTerritoryWarfare(false);
+      ns.closeTail();
+    }
 
     // log
     log(allGangData['Slum Snakes'], gangInfo, membersData);

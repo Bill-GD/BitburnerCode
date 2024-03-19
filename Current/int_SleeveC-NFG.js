@@ -13,7 +13,7 @@ export async function main(ns) {
       // -> install aug
       let [reqRep, currentRep] = [ns.singularity.getAugmentationRepReq('NeuroFlux Governor'), ns.singularity.getFactionRep('Sector-12')];
       const donation = (reqRep - currentRep) * 1e6 / ns.getPlayer().mults.faction_rep;
-      if (ns.getServerMoneyAvailable('home') !== oldMoney && ns.getServerMoneyAvailable('home') - oldMoney < oldMoney / 1e4
+      if (ns.getServerMoneyAvailable('home') > oldMoney && ns.getServerMoneyAvailable('home') - oldMoney < oldMoney / 1e4
         && ns.getServerMoneyAvailable('home') < ns.singularity.getAugmentationPrice('NeuroFlux Governor')
         // && ns.getServerMoneyAvailable('home') < donation
       ) {
@@ -28,7 +28,7 @@ export async function main(ns) {
           `Donation needed: ${donation} (${ns.formatNumber(donation, 3)})`,
           'w'
         )
-        ns.spawn('int_InstallAug.js');
+        // ns.spawn('int_InstallAug.js');
       }
       oldMoney = ns.getServerMoneyAvailable('home');
     }
@@ -36,18 +36,12 @@ export async function main(ns) {
     let [reqRep, currentRep] = [ns.singularity.getAugmentationRepReq('NeuroFlux Governor'), ns.singularity.getFactionRep('Sector-12')];
     if (reqRep > currentRep) {
       const donation = (reqRep - currentRep) * 1e6 / ns.getPlayer().mults.faction_rep;
-      if (ns.singularity.donateToFaction('Sector-12', donation)) ns.print(`Donated $${ns.formatNumber(donation, 3)} to Sector-12`);
+      if (ns.singularity.donateToFaction('Sector-12', donation)) {
+        const date = new Date();
+        let [hour, minute, second] = [date.getHours(), date.getMinutes(), date.getSeconds()].map(t => t > 9 ? t : '0' + t);
+        ns.print(`[${hour}:${minute}:${second}] Donated $${ns.formatNumber(donation, 3)} to Sector-12`);
+      }
     }
-
-    if (ns.bladeburner.getActionCountRemaining('contract', 'Bounty Hunter') >= 10e3) {
-      ns.run('sleeveContracts.js', { preventDuplicates: true });
-      ns.print('Sleeves start Contracts');
-    }
-    if (ns.bladeburner.getActionCountRemaining('contract', 'Bounty Hunter') <= 0) {
-      ns.scriptKill('sleeveContracts.js', 'home');
-      ns.print('Sleeves finished Contracts');
-    }
-
     await ns.sleep(1e3);
   }
 }

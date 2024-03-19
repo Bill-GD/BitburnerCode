@@ -1,5 +1,9 @@
-/** Version 2.3.2
- * Explicitly use ns.corporation to test ramReader
+/** Version 2.4
+ * Moved unimportant constants to the end of file
+ * Now handles employee energy and morale
+ * Market-TA1 & Market-TA2 now go together
+ * Re-arranged the handlers in the main loop
+ * Better version of import/export amount
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -31,95 +35,6 @@ export async function main(ns) {
 
   let desiredInvestFunds = 2e12;
 
-  const Enums = {
-    BoostMaterial: {
-      Agriculture: [0, 0, 0, 0.5],
-      Chemical: [0, 0.1, 0, 0.5],
-      Tobacco: [0, 0.3, 0, 0.2],
-      Mining: [0, 0.15, 0.15, 0.2],
-      Refine: [0.2, 0, 0, 0.3],
-      Computer: [0, 0.3, 0, 0.2],
-      WaterUtil: [0, 0, 0, 0.6],
-    },
-    IndustryType: {
-      Agriculture: 'Agriculture',
-      Chemical: 'Chemical',
-      Tobacco: 'Tobacco',
-      Mining: 'Mining',
-      Refinery: 'Refinery',
-      Computers: 'Computer Hardware',
-      WaterUtil: 'Water Utilities',
-      // Healthcare: 'Healthcare',
-      // SpringWater: 'Spring Water',
-      // Fishing: 'Fishing',
-      // Restaurant: 'Restaurant',
-      // Pharmaceutical: 'Pharmaceutical',
-      // Robotics: 'Robotics',
-      // Software: 'Software',
-      // RealEstate: 'Real Estate',
-    },
-    // indicates what's the next state
-    CorpState: {
-      Start: 'START',
-      Purchase: 'PURCHASE',
-      Production: 'PRODUCTION',
-      Export: 'EXPORT',
-      Sale: 'SALE',
-    },
-    Job: {
-      Operations: 'Operations',
-      Engineer: 'Engineer',
-      Business: 'Business',
-      Management: 'Management',
-      RandD: 'Research & Development',
-      Intern: 'Intern',
-      Unassigned: 'Unassigned',
-    },
-    Unlock: {
-      SmartSupply: 'Smart Supply',
-      Export: 'Export',
-      VeChain: 'VeChain',
-      MarketDemand: 'Market Research - Demand',
-      ShadyAccounting: 'Shady Accounting',
-      MarketCompetition: 'Market Data - Competition',
-      GovernmentPartnership: 'Government Partnership',
-    },
-    Upgrade: {
-      SmartFactories: 'Smart Factories',
-      FocusWires: 'FocusWires',
-      NeuralAccelerators: 'Neural Accelerators',
-      SpeechImplants: 'Speech Processor Implants',
-      NuoptimalImplants: 'Nuoptimal Nootropic Injector Implants',
-      ProjectInsight: 'Project Insight',
-      SmartStorage: 'Smart Storage',
-      WilsonAnalytics: 'Wilson Analytics',
-      // DreamSense: 'DreamSense',
-      // ABCSalesBots: 'ABC SalesBots',
-    },
-    Research: {
-      HiTechLab: new Research('Hi-Tech R&D Laboratory'),
-      MarketTA1: new Research('Market-TA.I', 'Hi-Tech R&D Laboratory'),
-      MarketTA2: new Research('Market-TA.II', 'Market-TA.I'),
-      Drones: new Research('Drones', 'Hi-Tech R&D Laboratory'),
-      DroneAssembly: new Research('Drones - Assembly', 'Drones'),
-      DroneTransport: new Research('Drones - Transport', 'Drones'),
-      Overclock: new Research('Overclock', 'Hi-Tech R&D Laboratory'),
-      uFulcrum: new Research('uPgrade: Fulcrum', 'Hi-Tech R&D Laboratory'),
-      uCapacity1: new Research('uPgrade: Capacity.I', 'uPgrade: Fulcrum'),
-      uCapacity2: new Research('uPgrade: Capacity.II', 'uPgrade: Capacity.I'),
-      SelfCorrecting: new Research('Self-Correcting Assemblers', 'Hi-Tech R&D Laboratory'),
-      Stimu: new Research('Sti.mu', 'Overclock'),
-      AutoBrew: new Research('AutoBrew', 'Hi-Tech R&D Laboratory'),
-      AutoPartyManager: new Research('AutoPartyManager', 'Hi-Tech R&D Laboratory'),
-      // AutoDrugAdmin: new Research('Automatic Drug Administration', 'Hi-Tech R&D Laboratory'),
-      // GoJuice: new Research('Go-Juice', 'Automatic Drug Administration'),
-      // CPH4: new Research('CPH4 Injections', 'Automatic Drug Administration'),
-      // uDashboard: new Research('uPgrade: Dashboard', 'uPgrade: Fulcrum'),
-      // HRRecruit: new Research('HRBuddy-Recruitment', 'Hi-Tech R&D Laboratory'),
-      // HRTraining: new Research('HRBuddy-Training', 'HRBuddy-Recruitment'),
-    },
-  };
-
   if (!ns.corporation.hasCorporation()) {
     try {
       ns.corporation.createCorporation('BillCorp', false);
@@ -145,8 +60,8 @@ export async function main(ns) {
 
   // [current stage, limits some purchases of the stage]
   let stage = 0;
-  if (getDivisions().includes(chemicalName)) stage = 2;
   if (getDivisions().includes(waterName)) stage = 4;
+  else if (getDivisions().includes(chemicalName)) stage = 2;
 
   let isTrickingInvestor = false;
   let prevCycleInvestment = 0;
@@ -159,48 +74,58 @@ export async function main(ns) {
   while (true) {
     ns.clearLog();
 
+    handleEnergyAndMorale();
     handleInvestFraud();
     checkInvestment();
     checkStage();
 
-    // * current: start
+    // * start
     if (corpInfo().state === Enums.CorpState.Purchase) {
       handleProduct();
       log(Enums.CorpState.Start);
     }
-    while (corpInfo().state === Enums.CorpState.Purchase) await ns.sleep(10);
+    while (corpInfo().state === Enums.CorpState.Purchase) {
+      await ns.sleep(10);
+    }
 
-    checkProductionMaterials();
-    // * current: purchase
+    // * purchase
     if (corpInfo().state === Enums.CorpState.Production) {
-      upgradeOffices();
+      if (stage !== 0) checkProductionMaterials();
       log(Enums.CorpState.Purchase);
     }
-    while (corpInfo().state === Enums.CorpState.Production) await ns.sleep(10);
-
-    // * current: production
-    if (corpInfo().state === Enums.CorpState.Export) {
+    while (corpInfo().state === Enums.CorpState.Production) {
+      upgradeOffices();
       hireNewEmployees();
-      handleIntern();
+      await ns.sleep(10);
+    }
+
+    // * production
+    if (corpInfo().state === Enums.CorpState.Export) {
+      handleResearch();
       log(Enums.CorpState.Production);
     }
-    while (corpInfo().state === Enums.CorpState.Export) await ns.sleep(10);
+    while (corpInfo().state === Enums.CorpState.Export) {
+      await ns.sleep(10);
+    }
 
-    // * current: export
+    // * export
     if (corpInfo().state === Enums.CorpState.Sale) {
       handleMarketTA();
       log(Enums.CorpState.Export);
     }
-    while (corpInfo().state === Enums.CorpState.Sale) await ns.sleep(10);
+    while (corpInfo().state === Enums.CorpState.Sale) {
+      await ns.sleep(10);
+    }
 
-    // * current: sale
+    // * sale
     if (corpInfo().state === Enums.CorpState.Start) {
       handleWarehouse();
-      handleResearch();
+      handleIntern();
       log(Enums.CorpState.Sale);
     }
-    while (corpInfo().state === Enums.CorpState.Start) await ns.sleep(10);
-
+    while (corpInfo().state === Enums.CorpState.Start) {
+      await ns.sleep(10);
+    }
   }
 
   /** * Does stage-specific management tasks. Currently has 6 stages: ```[0, 1, 2, 3, 4, 5]```.
@@ -208,15 +133,23 @@ export async function main(ns) {
    */
   function checkStage() {
     switch (stage) {
-      case 0: // expands to agriculture
+      case 0:
         initDivision(Enums.IndustryType.Agriculture, agricultureName);
-        buyFirstUpgrades();
         Object.values(ns.enums.CityName).forEach(city => {
           ns.corporation.sellMaterial(agricultureName, city, 'Plants', 'MAX', 'MP');
           ns.corporation.sellMaterial(agricultureName, city, 'Food', 'MAX', 'MP');
         });
 
-        stage = 1;
+        ns.print(getFunds());
+        
+        initDivision(Enums.IndustryType.Agriculture, agricultureName + '1');
+        Object.values(ns.enums.CityName).forEach(city => {
+          ns.corporation.sellMaterial(agricultureName + '1', city, 'Plants', 'MAX', 'MP');
+          ns.corporation.sellMaterial(agricultureName + '1', city, 'Food', 'MAX', 'MP');
+        });
+
+        if (getFunds() > 1e12)
+          stage = 1;
         break;
       case 1: // more upgrades
         upgrades.slice(0, 5).forEach(upgrade => {
@@ -227,8 +160,7 @@ export async function main(ns) {
         if (ns.corporation.getDivision(agricultureName).numAdVerts < 10)
           try { ns.corporation.hireAdVert(agricultureName); } catch { }
 
-        if (getFunds() > 1e12)
-          stage = 2;
+        stage = 2;
         break;
       case 2: // expand to chemical & tobacco
         try { ns.corporation.purchaseUnlock(Enums.Unlock.Export); } catch { }
@@ -237,8 +169,8 @@ export async function main(ns) {
         Object.values(ns.enums.CityName).forEach(city => {
           ns.corporation.sellMaterial(chemicalName, city, 'Chemicals', 'MAX', 'MP');
           try {
-            ns.corporation.exportMaterial(agricultureName, city, chemicalName, city, 'Plants', '-IPROD');
-            ns.corporation.exportMaterial(chemicalName, city, agricultureName, city, 'Chemicals', '-IPROD');
+            ns.corporation.exportMaterial(agricultureName, city, chemicalName, city, 'Plants', '(IPROD + IINV/10)*(-1)');
+            ns.corporation.exportMaterial(chemicalName, city, agricultureName, city, 'Chemicals', '(IPROD + IINV/10)*(-1)');
             ns.corporation.sellMaterial(chemicalName, city, 'Chemicals', 'MAX', 'MP');
           } catch { }
         });
@@ -246,7 +178,7 @@ export async function main(ns) {
         initDivision(Enums.IndustryType.Tobacco, tobaccoName);
         Object.values(ns.enums.CityName).forEach(city => {
           try {
-            ns.corporation.exportMaterial(agricultureName, city, tobaccoName, city, 'Plants', '-IPROD');
+            ns.corporation.exportMaterial(agricultureName, city, tobaccoName, city, 'Plants', '(IPROD + IINV/10)*(-1)');
           } catch { }
         });
 
@@ -279,7 +211,7 @@ export async function main(ns) {
         Object.values(ns.enums.CityName).forEach(city => {
           try {
             ns.corporation.sellMaterial(refineName, city, 'Metal', 'MAX', 'MP');
-            ns.corporation.exportMaterial(miningName, city, refineName, city, 'Ore', '-IPROD');
+            ns.corporation.exportMaterial(miningName, city, refineName, city, 'Ore', '(IPROD + IINV/10)*(-1)');
           } catch { }
         });
 
@@ -287,17 +219,17 @@ export async function main(ns) {
         Object.values(ns.enums.CityName).forEach(city => {
           try {
             ns.corporation.sellMaterial(hardwareName, city, 'Hardware', 'MAX', 'MP');
-            ns.corporation.exportMaterial(hardwareName, city, miningName, city, 'Hardware', '-IPROD');
-            ns.corporation.exportMaterial(refineName, city, hardwareName, city, 'Metal', '-IPROD');
+            ns.corporation.exportMaterial(hardwareName, city, miningName, city, 'Hardware', '(IPROD + IINV/10)*(-1)');
+            ns.corporation.exportMaterial(refineName, city, hardwareName, city, 'Metal', '(IPROD + IINV/10)*(-1)');
           } catch { }
         });
 
         initDivision(Enums.IndustryType.WaterUtil, waterName);
         Object.values(ns.enums.CityName).forEach(city => {
           try {
-            ns.corporation.exportMaterial(waterName, city, agricultureName, city, 'Water', '-IPROD');
-            ns.corporation.exportMaterial(waterName, city, chemicalName, city, 'Water', '-IPROD');
-            ns.corporation.exportMaterial(hardwareName, city, waterName, city, 'Hardware', '-IPROD');
+            ns.corporation.exportMaterial(waterName, city, agricultureName, city, 'Water', '(IPROD + IINV/10)*(-1)');
+            ns.corporation.exportMaterial(waterName, city, chemicalName, city, 'Water', '(IPROD + IINV/10)*(-1)');
+            ns.corporation.exportMaterial(hardwareName, city, waterName, city, 'Hardware', '(IPROD + IINV/10)*(-1)');
             ns.corporation.sellMaterial(waterName, city, 'Water', 'MAX', 'MP');
           } catch { }
         });
@@ -378,24 +310,24 @@ export async function main(ns) {
   /**
    * Initializes the industry. Expands to ```industry```, expands to all cities and purchases all warehouses.
    * @param {CorpIndustryName} industry Name of the industry to expand to.
-   * @param {string} division Name for the division of ```industry```.
+   * @param {string} divisionName Name for the division of ```industry```.
    */
-  function initDivision(industry, division) {
+  function initDivision(industry, divisionName) {
     try {
-      if (getDivisions().includes(division) || getFunds() < ns.corporation.getIndustryData(industry).startingCost * 1.5 + 45e9) return;
-      ns.corporation.expandIndustry(industry, division);
-      for (let i = 0; i < 2; i++)
-        try { ns.corporation.hireAdVert(division); } catch { }
+      if (getDivisions().includes(divisionName) || getFunds() <= ns.corporation.getIndustryData(industry).startingCost + 45e9) return;
+      ns.corporation.expandIndustry(industry, divisionName);
+      // for (let i = 0; i < 2; i++)
+      //   try { ns.corporation.hireAdVert(division); } catch { }
 
       Object.values(ns.enums.CityName).forEach(city => {
-        if (!ns.corporation.getDivision(division).cities.includes(city) && getFunds() >= 4e9)
-          ns.corporation.expandCity(division, city);
-        if (!ns.corporation.hasWarehouse(division, city) && getFunds() >= 5e9) {
-          ns.corporation.purchaseWarehouse(division, city);
+        if (!ns.corporation.getDivision(divisionName).cities.includes(city) && getFunds() >= 4e9)
+          ns.corporation.expandCity(divisionName, city);
+        if (!ns.corporation.hasWarehouse(divisionName, city) && getFunds() >= 5e9) {
+          ns.corporation.purchaseWarehouse(divisionName, city);
         }
-        ns.corporation.setSmartSupply(division, city, true);
-        if (ns.corporation.getWarehouse(division, city).level < 2)
-          ns.corporation.upgradeWarehouse(division, city, 2);
+        ns.corporation.setSmartSupply(divisionName, city, true);
+        // if (ns.corporation.getWarehouse(division, city).level < 2)
+        //   ns.corporation.upgradeWarehouse(division, city, 2);
       });
     } catch { }
   }
@@ -410,14 +342,25 @@ export async function main(ns) {
         ns.corporation.research(division, Enums.Research.HiTechLab.name);
       }
       try {
-        researches.forEach(research => {
-          // skip if: has researched, prereq not researched, insufficient point
-          if (ns.corporation.hasResearched(division, research.name)) return;
-          if (!ns.corporation.hasResearched(division, research.prerequisite)) return;
-          if (ns.corporation.getDivision(division).researchPoints - 15e2 < ns.corporation.getResearchCost(division, research.name)) return;
+        researches.forEach(
+          /** @param {Research} research */
+          research => {
+            if (research.name === Enums.Research.MarketTA1) return;
+            // skip if: has researched, prereq not researched, insufficient point
+            if (ns.corporation.hasResearched(division, research.name)) return;
+            if (research.name === Enums.Research.MarketTA2) {
+              if (ns.corporation.getDivision(division).researchPoints - 15e2 < ns.corporation.getResearchCost(division, research.name) + ns.corporation.getResearchCost(division, Enums.Research.MarketTA1)) return;
 
-          ns.corporation.research(division, research.name);
-        });
+              ns.corporation.research(division, Enums.Research.MarketTA1);
+              ns.corporation.research(division, research.name);
+            }
+            else {
+              if (!ns.corporation.hasResearched(division, research.prerequisite)) return;
+              if (ns.corporation.getDivision(division).researchPoints - 15e2 < ns.corporation.getResearchCost(division, research.name)) return;
+
+              ns.corporation.research(division, research.name);
+            }
+          });
       } catch { }
     });
   }
@@ -612,16 +555,13 @@ export async function main(ns) {
       case 3:
         desiredInvestFunds = 1e15;
         break;
-      // case 4:
-      //   desiredInvestFunds = 25e15;
-      //   break;
     }
 
     // if resulting funds is less than desired, returns
-    if (investOffer.funds + getFunds() < desiredInvestFunds) return;
+    // if (investOffer.funds + getFunds() < desiredInvestFunds) return;
 
     // only continue waiting if gain/cycle is ok (>0.1%)
-    if (prevCycleInvestment - investOffer.funds > prevCycleInvestment * 0.001) {
+    if (prevCycleInvestment <= 0 || prevCycleInvestment - investOffer.funds > prevCycleInvestment * 0.001) {
       prevCycleInvestment = investOffer.funds;
       return;
     }
@@ -660,16 +600,13 @@ export async function main(ns) {
       });
 
     // updates desired funds for next round
-    switch (investOffer.round) { // the round currently in, not done
+    switch (investOffer.round) {
       case 2:
         desiredInvestFunds = 25e12;
         break;
       case 3:
         desiredInvestFunds = 1e15;
         break;
-      // case 4:
-      //   desiredInvestFunds = 25e15;
-      //   break;
     }
   }
 
@@ -693,6 +630,8 @@ export async function main(ns) {
     for (const division of divisions) {
       // if boost material purchase is not done, skip fraud this cycle
       for (const city of Object.values(ns.enums.CityName)) {
+        if (!checkEnergyAndMorale(division, city)) return;
+
         const warehouseSize = ns.corporation.getWarehouse(division, city).size;
         for (const m of boostMaterials) {
           const index = boostMaterials.indexOf(m);
@@ -722,6 +661,31 @@ export async function main(ns) {
         });
       });
     }
+  }
+
+  /** Handle the average energy and morale. */
+  function handleEnergyAndMorale() {
+    const divisions = getDivisions();
+    for (const division of divisions) {
+      for (const city of Object.values(ns.enums.CityName)) {
+        if (checkEnergyAndMorale(division, city)) continue;
+
+        const office = ns.corporation.getOffice(division, city);
+        if (office.avgEnergy < 98) ns.corporation.buyTea(division, city);
+        if (office.avgMorale < 98) ns.corporation.throwParty(division, city, 5e5);
+      }
+    }
+  }
+
+  /** Check if the average energy and morale of a city is high enough.
+   * @param {string} division Name if the division.
+   * @param {string} city Name of the city.
+   * @returns ```true``` if both the average energy & average morale are above a certain threshold, else ```false```.
+   */
+  function checkEnergyAndMorale(division, city) {
+    const office = ns.corporation.getOffice(division, city);
+    if (office.avgEnergy < 98 || office.avgMorale < 98)
+      return false;
   }
 
   /** Log the current Corp state. */
@@ -792,3 +756,92 @@ class Research {
     this.prerequisite = prerequisite;
   }
 }
+
+const Enums = {
+  BoostMaterial: {
+    Agriculture: [0, 0, 0, 0.5],
+    Chemical: [0, 0.1, 0, 0.45],
+    Tobacco: [0, 0.3, 0, 0.2],
+    Mining: [0, 0.1, 0.1, 0.2],
+    Refine: [0.2, 0, 0, 0.25],
+    Computer: [0, 0.25, 0, 0.2],
+    WaterUtil: [0, 0, 0, 0.4],
+  },
+  IndustryType: {
+    Agriculture: 'Agriculture',
+    Chemical: 'Chemical',
+    Tobacco: 'Tobacco',
+    Mining: 'Mining',
+    Refinery: 'Refinery',
+    Computers: 'Computer Hardware',
+    WaterUtil: 'Water Utilities',
+    // Healthcare: 'Healthcare',
+    // SpringWater: 'Spring Water',
+    // Fishing: 'Fishing',
+    // Restaurant: 'Restaurant',
+    // Pharmaceutical: 'Pharmaceutical',
+    // Robotics: 'Robotics',
+    // Software: 'Software',
+    // RealEstate: 'Real Estate',
+  },
+  // indicates what's the next state
+  CorpState: {
+    Start: 'START',
+    Purchase: 'PURCHASE',
+    Production: 'PRODUCTION',
+    Export: 'EXPORT',
+    Sale: 'SALE',
+  },
+  Job: {
+    Operations: 'Operations',
+    Engineer: 'Engineer',
+    Business: 'Business',
+    Management: 'Management',
+    RandD: 'Research & Development',
+    Intern: 'Intern',
+    Unassigned: 'Unassigned',
+  },
+  Unlock: {
+    SmartSupply: 'Smart Supply',
+    Export: 'Export',
+    VeChain: 'VeChain',
+    MarketDemand: 'Market Research - Demand',
+    ShadyAccounting: 'Shady Accounting',
+    MarketCompetition: 'Market Data - Competition',
+    GovernmentPartnership: 'Government Partnership',
+  },
+  Upgrade: {
+    SmartFactories: 'Smart Factories',
+    FocusWires: 'FocusWires',
+    NeuralAccelerators: 'Neural Accelerators',
+    SpeechImplants: 'Speech Processor Implants',
+    NuoptimalImplants: 'Nuoptimal Nootropic Injector Implants',
+    ProjectInsight: 'Project Insight',
+    SmartStorage: 'Smart Storage',
+    WilsonAnalytics: 'Wilson Analytics',
+    // DreamSense: 'DreamSense',
+    // ABCSalesBots: 'ABC SalesBots',
+  },
+  Research: {
+    HiTechLab: new Research('Hi-Tech R&D Laboratory'),
+    MarketTA1: new Research('Market-TA.I', 'Hi-Tech R&D Laboratory'),
+    MarketTA2: new Research('Market-TA.II', 'Market-TA.I'),
+    AutoBrew: new Research('AutoBrew', 'Hi-Tech R&D Laboratory'),
+    AutoPartyManager: new Research('AutoPartyManager', 'Hi-Tech R&D Laboratory'),
+    Drones: new Research('Drones', 'Hi-Tech R&D Laboratory'),
+    DroneAssembly: new Research('Drones - Assembly', 'Drones'),
+    DroneTransport: new Research('Drones - Transport', 'Drones'),
+    Overclock: new Research('Overclock', 'Hi-Tech R&D Laboratory'),
+    uFulcrum: new Research('uPgrade: Fulcrum', 'Hi-Tech R&D Laboratory'),
+    uCapacity1: new Research('uPgrade: Capacity.I', 'uPgrade: Fulcrum'),
+    uCapacity2: new Research('uPgrade: Capacity.II', 'uPgrade: Capacity.I'),
+    SelfCorrecting: new Research('Self-Correcting Assemblers', 'Hi-Tech R&D Laboratory'),
+    // Stimu: new Research('Sti.mu', 'Overclock'),
+    // AutoDrugAdmin: new Research('Automatic Drug Administration', 'Hi-Tech R&D Laboratory'),
+    // GoJuice: new Research('Go-Juice', 'Automatic Drug Administration'),
+    // CPH4: new Research('CPH4 Injections', 'Automatic Drug Administration'),
+    // uDashboard: new Research('uPgrade: Dashboard', 'uPgrade: Fulcrum'),
+    // HRRecruit: new Research('HRBuddy-Recruitment', 'Hi-Tech R&D Laboratory'),
+    // HRTraining: new Research('HRBuddy-Training', 'HRBuddy-Recruitment'),
+  },
+};

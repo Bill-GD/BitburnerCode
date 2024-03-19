@@ -1,5 +1,6 @@
 /** Version 4.16
  * Tries to upgrade Cyber's Edge skill to avoid running out of stamina (breaks assassination loop)
+ * Fixed not updating runContract toggle after sleeveContracts.js overwriten it
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -56,13 +57,7 @@ export async function main(ns) {
 
   // main loop
   while (1) {
-    if (
-      postBlade &&
-      contracts
-        .slice()
-        .map(con => ns.bladeburner.getActionCountRemaining('contract', con))
-        .filter(count => count >= 1500).length > 0
-    )
+    if (postBlade && contracts.map(con => ns.bladeburner.getActionCountRemaining('contract', con)).filter(count => count >= 1500).length > 0)
       toggleSleeveContract(true);
     else toggleSleeveInfiltrate(true);
 
@@ -74,18 +69,17 @@ export async function main(ns) {
     if (!postBlade) {
       // general
       if (getActionChance('contract', 'Tracking') < chanceLimits.contract) {
-        await performAction('gen', 'Training');
-        await performAction('gen', 'Field Analysis');
+        await performAction('gen', 'Training', true, true, true);
+        await performAction('gen', 'Field Analysis', true, true, true);
       }
 
       // contracts
       if (getActionChance('contract', 'Tracking') >= chanceLimits.contract && currentOp === '')
         for (const con of contracts)
           if (getActionChance('contract', con) >= chanceLimits.contract && checkWorkCount('contract', con))
-            await performAction('contract', con, Math.min(ns.bladeburner.getActionCountRemaining('contract', con), 10));
+            await performAction('contract', con, Math.min(ns.bladeburner.getActionCountRemaining('contract', con), 10), true, true, true);
     }
 
-    await checkChaos();
     logNote = 'Post-Blade: ' + postBlade;
     if (ns.bladeburner.getBonusTime() <= 1e3) {
       currentOp = getBestOp();
@@ -93,7 +87,7 @@ export async function main(ns) {
         const count = postBlade
           ? ns.bladeburner.getActionCountRemaining('op', currentOp)
           : Math.min(ns.bladeburner.getActionCountRemaining('op', currentOp), Math.trunc(Math.random() * 7 + 13)); // 13-20
-        await performAction('op', currentOp, count);
+        await performAction('op', currentOp, count, true, true, true);
       }
     }
 
@@ -105,29 +99,31 @@ export async function main(ns) {
       while (ns.bladeburner.getActionCountRemaining('op', 'Assassination') < opToGenerate || ns.bladeburner.getBonusTime() > 1e3) {
         // if all contracts are exhausted here, set sleeves to infiltrate, else let contracts script handle it
         if (contracts.every(con => ns.bladeburner.getActionCountRemaining('contract', con) <= 0)) toggleSleeveInfiltrate(true);
-        await performAction('gen', 'Incite Violence', 1, false, false);
+        if (postBlade && contracts.map(con => ns.bladeburner.getActionCountRemaining('contract', con)).filter(count => count >= 1500).length > 0)
+          toggleSleeveContract(true);
+        await performAction('gen', 'Incite Violence', 1);
       }
     }
   }
 
   function logAction() {
     ns.clearLog();
-    const divider = ' -----------------------------------------------', lines = [];
+    const divider = ' -------------------------------------------------', lines = [];
 
-    lines.push(' h----------------==={ sNOTE h}===-----------------');
-    const logNotePrint = logNote.split('\n');
+    lines.push(' h-----------------==={ sNOTE h}===------------------');
+    const logNotePrint = [...(new Set(logNote.split('\n')))];
     ns.bladeburner.getBonusTime() > 2e3 && logNotePrint.push('Bonus Time: ' + getTimeString(ns.bladeburner.getBonusTime()));
     logNotePrint.forEach(note => lines.push(` s${fillWhitespaces(divider.length / 2 - note.toString().length / 2 - 1)}v${note}`));
 
-    lines.push(' h---------------==={ sCURRENT h}===---------------');
+    lines.push(' h----------------==={ sCURRENT h}===----------------');
     lines.push(` s${fillWhitespaces(divider.length / 2 - log.action.name.length / 2)}v${log.action.name}`);
     log.action.type !== 'gen' && lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.action.chance, 2)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hTime: v${Math.round(ns.bladeburner.getActionCurrentTime() / 1e3)} / ${Math.round(log.action.time / 1e3)}`);
     lines.push(`${fillWhitespaces(divider.length / 4 - 2)} hProgress: v${progressBar(log.action.time <= 1e3 ? 1e3 : ns.bladeburner.getActionCurrentTime() / log.action.time, 20)}`);
     log.action.count !== Infinity && log.action.count !== 1 && lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hCount: v${log.action.count}`);
-    !log.action.type.toLowerCase().includes('gen') && lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v-${ns.formatNumber(log.action.staminaCost, 3)} / ${ns.formatNumber(ns.bladeburner.getStamina()[1], 3)}`);
+    !log.action.type.toLowerCase().includes('gen') && lines.push(`${fillWhitespaces(divider.length / 4 - 1)} hStamina: v${ns.formatNumber(ns.bladeburner.getStamina()[0], 3)}/${ns.formatNumber(ns.bladeburner.getStamina()[1], 3)} (-${ns.formatNumber(log.action.staminaCost, 3)})`);
 
-    lines.push(' h---------------==={ sSKILLS h}===----------------');
+    lines.push(' h----------------==={ sSKILLS h}===-----------------');
     lines.push(
       `${fillWhitespaces(divider.length / 3 - 2)} hRank: v${ns.formatNumber(log.rank, log.rank >= 1e6 ? 3 : 0, 1e6)}` +
       `${rankGain > 0 ? ` (+ ~${ns.formatNumber(rankGain, rankGain >= 1e6 ? 1 : 0, 1e6)})` : ''}`
@@ -151,7 +147,7 @@ export async function main(ns) {
 
     if (!postBlade) {
       const rankMet = log.rank > actions.BlackOp[currentBlackOp].reqdRank;
-      lines.push(' h--------------==={ sBLACK OP h}===---------------');
+      lines.push(' h---------------==={ sBLACK OP h}===----------------');
       lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${currentBlackOp.substring(10)}`);
       lines.push(
         `${fillWhitespaces(divider.length / 4)} hChance: ${log.blackOpChance > chanceLimits.blackOp ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log.blackOpChance, 2)}`
@@ -161,12 +157,12 @@ export async function main(ns) {
         ` ${rankMet ? `${getColor('#00ff00')}` : `${getColor('#ff0000')}`}${ns.formatPercent(log.rank / actions.BlackOp[currentBlackOp].reqdRank)}`
       );
     } else {
-      lines.push(' h----------------==={ sCITY h}===-----------------');
+      lines.push(' h-----------------==={ sCITY h}===------------------');
       lines.push(`${fillWhitespaces(divider.length / 4 + 2)} hName: v${log.city.name}`);
       lines.push(`${fillWhitespaces(divider.length / 4 - 4)} hPopulation: v${ns.formatNumber(log.city.population, 3)}`);
       lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hChaos: v${ns.formatNumber(log.city.chaos, 3)}`);
 
-      lines.push(' h------------==={ sASSASSINATION h}===------------');
+      lines.push(' h-------------==={ sASSASSINATION h}===-------------');
       lines.push(`${fillWhitespaces(divider.length / 4 + 1)} hLevel: v${log.assassination.level}`);
       lines.push(`${fillWhitespaces(divider.length / 4)} hChance: v${ns.formatPercent(log.assassination.chance, 2)}`);
       lines.push(`${fillWhitespaces(divider.length / 4 - 3)} hSuccesses: v${ns.formatNumber(log.assassination.successes, 3, 1e6)}`);
@@ -185,14 +181,16 @@ export async function main(ns) {
    * @param {number} count The action count. Defaults to ```1```.
    * @param {boolean} stamina Whether to check stamina. Set to ```false``` to avoid stamina check (and possible infinite loop). Defaults to ```true```.
    * @param {boolean} blackOp Whether to check for Black Op. Set to ```false``` to disable Black Op (why?). Defaults to ```true```. */
-  async function performAction(type = '', action = '', count = 1, stamina = true, blackOp = true) {
+  async function performAction(type = '', action = '', count = 1, stamina = false, blackOp = false, chaos = false) {
     log.action = { ...log.action, name: action, type: type };
     const titleAction = type !== 'blackop' ? action : 'Op. ' + action.substring(10);
 
     if (ns.bladeburner.startAction(type, action)) {
+      logNote += `\n ${action} x${count}`;
       for (let i = 1; i <= count; i++) {
         if (ns.bladeburner.getActionCountRemaining(type, action) <= 0) break;
 
+        chaos && await checkChaos();
         log.rank = ns.bladeburner.getRank();
         log.action = {
           ...log.action,
@@ -276,14 +274,14 @@ export async function main(ns) {
         ns.bladeburner.getActionCountRemaining('op', 'Undercover Operation') > 0 &&
         ns.bladeburner.getActionTime('op', 'Undercover Operation') <= 30e3
       )
-        await performAction('op', 'Undercover Operation', 1, false, false);
+        await performAction('op', 'Undercover Operation', 1);
       else if (
         getActionChance('op', 'Investigation') >= chanceLimits.operation &&
         ns.bladeburner.getActionCountRemaining('op', 'Investigation') > 0 &&
         ns.bladeburner.getActionTime('op', 'Investigation') <= 30e3
       )
-        await performAction('op', 'Investigation', 1, false, false);
-      else await performAction('gen', 'Field Analysis', 1, false, false);
+        await performAction('op', 'Investigation', 1);
+      else await performAction('gen', 'Field Analysis');
     }
   }
 
@@ -291,7 +289,7 @@ export async function main(ns) {
   async function checkStamina() {
     if (ns.bladeburner.getStamina()[0] < 0.5 * ns.bladeburner.getStamina()[1]) {
       logNote = 'Increasing stamina';
-      while (ns.bladeburner.getStamina()[0] < ns.bladeburner.getStamina()[1]) await performAction('gen', 'Hyperbolic Regeneration Chamber', 1, false, false);
+      while (ns.bladeburner.getStamina()[0] < ns.bladeburner.getStamina()[1]) await performAction('gen', 'Hyperbolic Regeneration Chamber', 1);
     }
   }
 
@@ -334,7 +332,7 @@ export async function main(ns) {
 
     if (!postBlade) toggleSleeveDiplomacy(true);
     logNote = 'Decreasing Chaos';
-    while (ns.bladeburner.getCityChaos(currentCity) > 50) await performAction('gen', 'Diplomacy', 1, false, false);
+    while (ns.bladeburner.getCityChaos(currentCity) > 50) await performAction('gen', 'Diplomacy', 1);
     toggleSleeveDiplomacy(false);
   }
 
@@ -347,7 +345,7 @@ export async function main(ns) {
       if (ns.bladeburner.getRank() < actions.BlackOp[currentBlackOp].reqdRank) return;
       if (getActionChance('blackop', currentBlackOp) < chanceLimits.blackOp) return;
 
-      await performAction('blackop', currentBlackOp, 1, true, false);
+      await performAction('blackop', currentBlackOp, 1, true);
 
       // if succeed, notify the user and update the blackop
       const nextBlackOp = getCurrentBlackOp();
@@ -516,7 +514,7 @@ export async function main(ns) {
    * @returns Stamina cost of the action. 
    */
   function calculateStaminaCost(type, actionName) {
-    // if (type.toLowerCase().includes('gen')) return;
+    if (type.toLowerCase().includes('gen')) return NaN;
     const action = type.toLowerCase().includes('contract') ? actions.Contract[actionName] : actions.Operation[actionName];
     const difficulty = action.baseDifficulty * Math.pow(action.difficultyFac, ns.bladeburner.getActionMaxLevel(type.toLowerCase(), actionName) - 1);
     const difficultyMultiplier = Math.pow(difficulty, 0.28) + difficulty / 650;
@@ -525,28 +523,24 @@ export async function main(ns) {
 
   function toggleSleeveInfiltrate(toggle) {
     sleeveControl.runInfiltrate = toggle;
-    if (toggle) {
-      if (sleeveControl.runContract) sleeveControl.runContract = false;
-      if (sleeveControl.runDiplomacy) sleeveControl.runDiplomacy = false;
-    }
+    sleeveControl.runContract = JSON.parse(ns.read('blade-sleeve.txt')).runContract;
+    if (toggle && sleeveControl.runDiplomacy) sleeveControl.runDiplomacy = false;
+    ns.toast(`Toggle Infiltrate: ${toggle}`, 'info');
     ns.write('blade-sleeve.txt', JSON.stringify(sleeveControl), 'w');
   }
 
   function toggleSleeveDiplomacy(toggle) {
     sleeveControl.runDiplomacy = toggle;
-    if (toggle) {
-      if (sleeveControl.runContract) sleeveControl.runContract = false;
-      if (sleeveControl.runInfiltrate) sleeveControl.runInfiltrate = false;
-    }
+    sleeveControl.runContract = JSON.parse(ns.read('blade-sleeve.txt')).runContract;
+    if (toggle && sleeveControl.runInfiltrate) sleeveControl.runInfiltrate = false;
+    ns.toast(`Toggle Diplomacy: ${toggle}`, 'info');
     ns.write('blade-sleeve.txt', JSON.stringify(sleeveControl), 'w');
   }
 
   function toggleSleeveContract(toggle) {
     sleeveControl.runContract = toggle;
-    if (toggle) {
-      if (sleeveControl.runDiplomacy) sleeveControl.runDiplomacy = false;
-      if (sleeveControl.runInfiltrate) sleeveControl.runInfiltrate = false;
-    }
+    if (toggle && sleeveControl.runDiplomacy) sleeveControl.runDiplomacy = false;
+    ns.toast(`Toggle Contract: ${toggle}`, 'info');
     ns.write('blade-sleeve.txt', JSON.stringify(sleeveControl), 'w');
   }
 }

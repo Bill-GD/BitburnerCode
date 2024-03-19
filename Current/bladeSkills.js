@@ -12,6 +12,7 @@ export async function main(ns) {
     ['extra', false],
     ['leftover', false],
   ]);
+  if (flagOptions.avoidOverlap) ns.moveTail(850, 250);
   ns.atExit(() => flagOptions.autoClose && ns.closeTail());
 
   const skills = [
@@ -19,7 +20,6 @@ export async function main(ns) {
     // { name: 'Hands of Midas', baseCost: 2, costInc: 2.5 },
   ];
 
-  if (flagOptions.avoidOverlap) ns.moveTail(850, 250);
   if (flagOptions.extra) {
     if (await ns.prompt(`Add 'Blade's Intuition' for all success chance?`)) skills.push({ name: `Blade's Intuition`, baseCost: 3, costInc: 2.1 });
     if (await ns.prompt(`Add 'Short-Circuit' for retirement success chance?`)) skills.push({ name: 'Short-Circuit', baseCost: 2, costInc: 2.1 });

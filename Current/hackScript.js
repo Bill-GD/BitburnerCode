@@ -1,6 +1,5 @@
-/** Version 2.0.1
- * Fixed bug with thread: can only increase
- * Rewrote grow thread calculation, it's now mutable -> can update if hack thread is fixed
+/** Version 2.0.2
+ * Forces the thread count to be at least 1
  */
 /** @param {NS} ns */
 export async function main(ns) {
@@ -98,24 +97,26 @@ export async function main(ns) {
       ns.alert(`Ram usage overflows\n${ns.formatRam(usedRam, 2)} / ${ns.formatRam(serverMaxRam, 2)}`);
       return;
     }
-    if ((willHack && hackThread <= 0) || (willWeak && weakThreadSec <= 0) || (willGrow && growThreadMoney <= 0)) {
-      ns.alert(`Thread count must be positive\n hack=${hackThread},weak=${weakThreadSec},grow=${growThreadMoney}`);
-      return;
-    }
+
+    hackThread = Math.max(hackThread, 1);
+    weakThreadSec = Math.max(weakThreadSec, 1);
+    growThreadMoney = Math.max(growThreadMoney, 1);
 
     // execute
-    if (willWeak) {
-      ns.run(files.weakening.name, weakThreadSec, targetServer);
-      await ns.sleep(willGrow ? timeWeak - timeGrow : timeWeak);
-    }
-    if (willGrow) {
-      ns.run(files.growing.name, growThreadMoney, targetServer);
-      await ns.sleep(willHack ? timeGrow - timeHack + 20 : timeGrow);
-    }
-    if (willHack) {
-      ns.run(files.hacking.name, hackThread, targetServer);
-      await ns.sleep(timeHack);
-    }
+    try {
+      if (willWeak) {
+        ns.run(files.weakening.name, weakThreadSec, targetServer);
+        await ns.sleep(willGrow ? timeWeak - timeGrow : timeWeak);
+      }
+      if (willGrow) {
+        ns.run(files.growing.name, growThreadMoney, targetServer);
+        await ns.sleep(willHack ? timeGrow - timeHack + 20 : timeGrow);
+      }
+      if (willHack) {
+        ns.run(files.hacking.name, hackThread, targetServer);
+        await ns.sleep(timeHack);
+      }
+    } catch { }
     await ns.sleep(100);
   }
 
